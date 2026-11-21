@@ -82,10 +82,10 @@ export const api = {
 
   // Auth
   me: () => requestJson<{ user: UserProfile }>('/api/v1/auth/me'),
-  login: (email: string, password: string) =>
+  login: (email: string, password: string, portalRole?: UserRole) =>
     requestJson<{ user: UserProfile }>('/api/v1/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(portalRole ? { email, password, portalRole } : { email, password }),
     }),
   register: (payload: {
     email: string;

@@ -9,6 +9,8 @@ export type PublicRoute =
   | '/privacy'
   | '/terms'
   | '/login'
+  | '/reviewer/login'
+  | '/admin/login'
   | '/register'
   | '/forgot-password'
   | '/reset-password'
@@ -26,6 +28,8 @@ const VALID_ROUTES: ReadonlySet<string> = new Set<PublicRoute>([
   '/privacy',
   '/terms',
   '/login',
+  '/reviewer/login',
+  '/admin/login',
   '/register',
   '/forgot-password',
   '/reset-password',

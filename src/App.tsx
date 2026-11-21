@@ -280,8 +280,16 @@ function LittleStepsRouter() {
         return <PrivacyPolicyPage onNavigate={navigate} />;
       case '/terms':
         return <TermsPage onNavigate={navigate} />;
-      case '/login':
-        return <LoginPage onNavigate={navigate} />;
+      case '/login': {
+        const queryRole = getQueryParam('role');
+        const initialRole =
+          queryRole === 'reviewer' || queryRole === 'admin' ? queryRole : 'parent';
+        return <LoginPage onNavigate={navigate} initialRole={initialRole} />;
+      }
+      case '/reviewer/login':
+        return <LoginPage onNavigate={navigate} initialRole="reviewer" />;
+      case '/admin/login':
+        return <LoginPage onNavigate={navigate} initialRole="admin" />;
       case '/register':
         return <RegisterPage onNavigate={navigate} />;
       default:

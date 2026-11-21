@@ -60,6 +60,7 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address.'),
   password: z.string().min(1, 'Please enter your password.'),
+  portalRole: z.enum(['parent', 'reviewer', 'admin']).optional(),
 });
 
 const forgotPasswordSchema = z.object({
@@ -371,6 +372,17 @@ export function createApiRouter(
     const found = repo.findUserByEmail(parsed.data.email);
     if (!found || !found.isActive || !verifyPassword(parsed.data.password, found.passwordHash)) {
       res.status(401).json({ error: 'Invalid email or password.' });
+      return;
+    }
+    if (parsed.data.portalRole && found.role !== parsed.data.portalRole) {
+      const roleLabels: Record<string, string> = {
+        parent: 'Parent',
+        reviewer: 'Reviewer',
+        admin: 'Admin',
+      };
+      res.status(403).json({
+        error: `This account does not have ${roleLabels[parsed.data.portalRole]} access. Please sign in using the ${roleLabels[found.role]} tab.`,
+      });
       return;
     }
     const { passwordHash: _omit, sessionVersion, ...user } = found;

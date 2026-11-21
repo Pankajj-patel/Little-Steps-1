@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getDb } from './server/db/connection.ts';
 import { runMigrations } from './server/db/schema.ts';
-import { seedDatabaseIfEmpty } from './server/db/seed.ts';
+import { seedDatabaseIfEmpty, syncConfiguredStaffPasswords } from './server/db/seed.ts';
 import { LittleStepsRepository } from './server/repositories/index.ts';
 import { createApiRouter } from './server/routes/api.ts';
 import { RetentionWorker } from './server/services/retentionWorker.ts';
@@ -33,6 +33,7 @@ export function createApp() {
   const db = getDb();
   runMigrations(db);
   seedDatabaseIfEmpty(db);
+  syncConfiguredStaffPasswords(db);
 
   const repo = new LittleStepsRepository(db);
   const retentionWorker = new RetentionWorker(repo, mediaStorage);

@@ -6,7 +6,15 @@ import {
   EDITORIAL_IMAGES,
   RETENTION_DAYS,
 } from '../../src/shared/domain.ts';
-import { hashPassword } from '../security/crypto.ts';
+import { hashPassword, verifyPassword } from '../security/crypto.ts';
+
+function readConfiguredPassword(envName: string): string | null {
+  const val = process.env[envName]?.trim();
+  if (!val || val.length < 8 || val.startsWith('replace-with-')) {
+    return null;
+  }
+  return val;
+}
 
 interface SeedActivityDef {
   ageSlug: string;
@@ -439,8 +447,14 @@ export function seedDatabaseIfEmpty(db: Database.Database): void {
       insertDomain.run(id, domain.slug, domain.name, domain.description, domain.sortOrder);
     }
 
-    // Seed demo accounts across all 3 roles (Password for all demo accounts: LittleSteps123!)
-    const demoPasswordHash = hashPassword('LittleSteps123!');
+    // Seed starter accounts across all 3 roles; staff passwords can be overridden via server env vars
+    const parentPasswordHash = hashPassword('LittleSteps123!');
+    const reviewerPasswordHash = hashPassword(
+      readConfiguredPassword('REVIEWER_INITIAL_PASSWORD') ?? 'LittleSteps123!'
+    );
+    const adminPasswordHash = hashPassword(
+      readConfiguredPassword('ADMIN_INITIAL_PASSWORD') ?? 'LittleSteps123!'
+    );
     const parentId = 'usr_parent_meera';
     const reviewerId = 'usr_reviewer_ananya';
     const adminId = 'usr_admin_kavita';
@@ -457,9 +471,9 @@ export function seedDatabaseIfEmpty(db: Database.Database): void {
          1
        )`
     );
-    insertUser.run(parentId, 'meera@littlesteps.in', demoPasswordHash, 'Meera Deshmukh', '+91 98200 11223', 'parent');
-    insertUser.run(reviewerId, 'ananya.reviewer@littlesteps.in', demoPasswordHash, 'Ananya Kulkarni', '+91 98200 44556', 'reviewer');
-    insertUser.run(adminId, 'kavita.admin@littlesteps.in', demoPasswordHash, 'Kavita Nair', '+91 98200 77889', 'admin');
+    insertUser.run(parentId, 'meera@littlesteps.in', parentPasswordHash, 'Meera Deshmukh', '+91 98200 11223', 'parent');
+    insertUser.run(reviewerId, 'ananya.reviewer@littlesteps.in', reviewerPasswordHash, 'Ananya Kulkarni', '+91 98200 44556', 'reviewer');
+    insertUser.run(adminId, 'kavita.admin@littlesteps.in', adminPasswordHash, 'Kavita Nair', '+91 98200 77889', 'admin');
 
     db.prepare(
       `INSERT INTO user_consents (id, user_id, consent_type, policy_version, ip_hash)
@@ -962,5 +976,34 @@ function ensureStructuredDailyPlans(db: Database.Database): void {
   });
 
   tx();
+}
+
+/**
+ * Applies server-configured staff passwords (ADMIN_INITIAL_PASSWORD / REVIEWER_INITIAL_PASSWORD)
+ * when set in environment variables so operators can immediately rotate starter passwords
+ * without modifying code or exposing credentials to the browser.
+ */
+export function syncConfiguredStaffPasswords(db: Database.Database): void {
+  const targets: Array<{ email: string; envName: string }> = [
+    { email: 'kavita.admin@littlesteps.in', envName: 'ADMIN_INITIAL_PASSWORD' },
+    { email: 'ananya.reviewer@littlesteps.in', envName: 'REVIEWER_INITIAL_PASSWORD' },
+  ];
+
+  for (const target of targets) {
+    const configured = readConfiguredPassword(target.envName);
+    if (!configured) continue;
+
+    const existing = db
+      .prepare('SELECT id, password_hash FROM users WHERE email = ?')
+      .get(target.email) as { id: string; password_hash: string } | undefined;
+
+    if (existing && !verifyPassword(configured, existing.password_hash)) {
+      db.prepare(
+        `UPDATE users
+         SET password_hash = ?, session_version = session_version + 1
+         WHERE id = ?`
+      ).run(hashPassword(configured), existing.id);
+    }
+  }
 }
 

@@ -52,7 +52,10 @@ export function PublicLayout({ currentRoute, onNavigate, children }: PublicLayou
             className="hidden md:flex items-center gap-6 lg:gap-7"
           >
             {HEADER_NAV_LINKS.map((item) => {
-              const active = currentRoute === item.route;
+              const active =
+                currentRoute === item.route ||
+                (item.route === '/login' &&
+                  (currentRoute === '/reviewer/login' || currentRoute === '/admin/login'));
               return (
                 <a
                   key={item.route}
@@ -230,7 +233,25 @@ export function PublicLayout({ currentRoute, onNavigate, children }: PublicLayou
                     onClick={(e) => handleLinkClick(e, '/login')}
                     className="hover:text-charcoal transition-colors"
                   >
-                    Login
+                    Parent Login
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="/reviewer/login"
+                    onClick={(e) => handleLinkClick(e, '/reviewer/login')}
+                    className="hover:text-charcoal transition-colors"
+                  >
+                    Reviewer Login
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="/admin/login"
+                    onClick={(e) => handleLinkClick(e, '/admin/login')}
+                    className="hover:text-charcoal transition-colors"
+                  >
+                    Admin Login
                   </a>
                 </li>
                 <li>

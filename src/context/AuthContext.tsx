@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { translate, type TranslationKey } from '../shared/i18n';
-import type { AgeGroup, LearningDomain, LocaleCode, UserProfile } from '../shared/types';
+import type { AgeGroup, LearningDomain, LocaleCode, UserProfile, UserRole } from '../shared/types';
 
 interface AuthContextValue {
   user: UserProfile | null;
@@ -13,7 +13,7 @@ interface AuthContextValue {
   setVerificationPreviewPath: (path: string | null) => void;
   setUser: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   t: (key: TranslationKey) => string;
-  login: (email: string, password: string) => Promise<UserProfile>;
+  login: (email: string, password: string, portalRole?: UserRole) => Promise<UserProfile>;
   register: (payload: {
     email: string;
     password: string;
@@ -78,8 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { user: loggedIn } = await api.login(email, password);
+  const login = useCallback(async (email: string, password: string, portalRole?: UserRole) => {
+    const { user: loggedIn } = await api.login(email, password, portalRole);
     setUser(loggedIn);
     if (loggedIn.emailVerifiedAt) {
       setVerificationPreviewPath(null);

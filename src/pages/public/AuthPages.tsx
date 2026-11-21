@@ -13,8 +13,14 @@ import { Button, Card, Input, useToast } from '../../design-system';
 import { api } from '../../lib/api';
 import type { NavigateTarget } from '../../lib/router';
 
+import type { UserRole } from '../../shared/types';
+
 interface AuthPageProps {
   onNavigate: (route: NavigateTarget) => void;
+}
+
+interface LoginPageProps extends AuthPageProps {
+  initialRole?: UserRole;
 }
 
 interface TokenAuthPageProps extends AuthPageProps {
@@ -23,17 +29,71 @@ interface TokenAuthPageProps extends AuthPageProps {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const PORTAL_META: Record<
+  UserRole,
+  {
+    label: string;
+    eyebrow: string;
+    heading: string;
+    subtitle: string;
+    emailPlaceholder: string;
+    ctaLabel: string;
+  }
+> = {
+  parent: {
+    label: 'Parent',
+    eyebrow: 'Parent Portal',
+    heading: 'Sign in to LittleSteps',
+    subtitle: 'Continue your baby’s calm daily activity journey.',
+    emailPlaceholder: 'you@example.com',
+    ctaLabel: 'Sign In as Parent',
+  },
+  reviewer: {
+    label: 'Reviewer',
+    eyebrow: 'Authorized Reviewer Portal',
+    heading: 'Reviewer Sign In',
+    subtitle: 'Enter your assigned reviewer email and password to access the review queue.',
+    emailPlaceholder: 'reviewer@littlesteps.in',
+    ctaLabel: 'Sign In to Reviewer Portal',
+  },
+  admin: {
+    label: 'Admin',
+    eyebrow: 'Administrator Portal',
+    heading: 'Admin Sign In',
+    subtitle: 'Enter your administrator credentials to manage curriculum, reviewers, and safety logs.',
+    emailPlaceholder: 'admin@littlesteps.in',
+    ctaLabel: 'Sign In to Admin Console',
+  },
+};
+
 /* ========================================================================= */
 /* 1. LOGIN PAGE                                                             */
 /* ========================================================================= */
-export function LoginPage({ onNavigate }: AuthPageProps) {
+export function LoginPage({ onNavigate, initialRole = 'parent' }: LoginPageProps) {
   const { login } = useAuth();
   const { notify } = useToast();
+  const [portalRole, setPortalRole] = useState<UserRole>(initialRole);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPortalRole(initialRole);
+    setError(null);
+  }, [initialRole]);
+
+  const activeMeta = PORTAL_META[portalRole];
+
+  const handleSelectPortal = (nextRole: UserRole) => {
+    setPortalRole(nextRole);
+    setError(null);
+    setFieldErrors({});
+    if (nextRole === 'parent') onNavigate('/login');
+    else if (nextRole === 'reviewer') onNavigate('/reviewer/login');
+    else onNavigate('/admin/login');
+  };
 
   const validate = () => {
     const next: { email?: string; password?: string } = {};
@@ -53,7 +113,7 @@ export function LoginPage({ onNavigate }: AuthPageProps) {
     if (!validate()) return;
     setSubmitting(true);
     try {
-      const user = await login(email.trim(), password);
+      const user = await login(email.trim(), password, portalRole);
       notify({
         tone: 'success',
         title: `Welcome back, ${user.fullName.split(' ')[0]}`,
@@ -66,38 +126,46 @@ export function LoginPage({ onNavigate }: AuthPageProps) {
     }
   };
 
-  const handleDemoLogin = async (demoEmail: string) => {
-    setError(null);
-    setFieldErrors({});
-    setSubmitting(true);
-    try {
-      const user = await login(demoEmail, 'LittleSteps123!');
-      notify({
-        tone: 'success',
-        title: `Signed in as ${user.fullName}`,
-        description: `Opening ${user.role} workspace.`,
-      });
-      onNavigate('/');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to sign in.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <div className="max-w-md mx-auto px-4 sm:px-6 py-12 sm:py-16 space-y-6">
       <div className="text-center space-y-2">
-        <p className="font-mono text-xs text-sage tabular-nums">Welcome Back</p>
+        <p className="font-mono text-xs text-sage tabular-nums">{activeMeta.eyebrow}</p>
         <h1 className="font-display text-3xl font-semibold text-charcoal">
-          Sign in to LittleSteps
+          {activeMeta.heading}
         </h1>
         <p className="text-sm text-muted">
-          Continue your baby’s calm daily activity journey.
+          {activeMeta.subtitle}
         </p>
       </div>
 
       <Card className="space-y-5">
+        {/* Role Portal Selector — requires email + password for every role */}
+        <div
+          role="tablist"
+          aria-label="Choose sign-in portal"
+          className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-cream border border-border"
+        >
+          {(['parent', 'reviewer', 'admin'] as UserRole[]).map((roleOption) => {
+            const selected = portalRole === roleOption;
+            return (
+              <button
+                key={roleOption}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => handleSelectPortal(roleOption)}
+                className={`min-h-[40px] rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  selected
+                    ? 'bg-surface text-charcoal shadow-xs border border-border'
+                    : 'text-muted hover:text-charcoal'
+                }`}
+              >
+                {PORTAL_META[roleOption].label}
+              </button>
+            );
+          })}
+        </div>
+
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <Input
             label="Email address"
@@ -110,7 +178,7 @@ export function LoginPage({ onNavigate }: AuthPageProps) {
               if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: undefined }));
             }}
             error={fieldErrors.email}
-            placeholder="you@example.com"
+            placeholder={activeMeta.emailPlaceholder}
           />
 
           <div className="space-y-1.5">
@@ -151,51 +219,27 @@ export function LoginPage({ onNavigate }: AuthPageProps) {
             loading={submitting}
             rightIcon={<ArrowRight className="w-4 h-4" />}
           >
-            Sign In
+            {activeMeta.ctaLabel}
           </Button>
         </form>
-
-        <div className="pt-4 border-t border-border space-y-2.5">
-          <p className="text-xs text-muted">Quick prototype workspace access:</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Button
-              variant="subtle"
-              size="sm"
-              disabled={submitting}
-              onClick={() => void handleDemoLogin('meera@littlesteps.in')}
-            >
-              Parent
-            </Button>
-            <Button
-              variant="subtle"
-              size="sm"
-              disabled={submitting}
-              onClick={() => void handleDemoLogin('ananya.reviewer@littlesteps.in')}
-            >
-              Reviewer
-            </Button>
-            <Button
-              variant="subtle"
-              size="sm"
-              disabled={submitting}
-              onClick={() => void handleDemoLogin('kavita.admin@littlesteps.in')}
-            >
-              Admin
-            </Button>
-          </div>
-        </div>
       </Card>
 
-      <p className="text-center text-sm text-muted">
-        New to LittleSteps?{' '}
-        <button
-          type="button"
-          onClick={() => onNavigate('/register')}
-          className="text-sage font-medium hover:underline cursor-pointer"
-        >
-          Create a parent account
-        </button>
-      </p>
+      {portalRole === 'parent' ? (
+        <p className="text-center text-sm text-muted">
+          New to LittleSteps?{' '}
+          <button
+            type="button"
+            onClick={() => onNavigate('/register')}
+            className="text-sage font-medium hover:underline cursor-pointer"
+          >
+            Create a parent account
+          </button>
+        </p>
+      ) : (
+        <p className="text-center text-xs text-muted">
+          Reviewer and administrator accounts are provisioned by a LittleSteps admin and require password authentication.
+        </p>
+      )}
     </div>
   );
 }
