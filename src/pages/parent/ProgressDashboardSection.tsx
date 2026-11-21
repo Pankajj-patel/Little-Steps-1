@@ -30,7 +30,8 @@ import {
 } from '../../design-system';
 import { api } from '../../lib/api';
 import { formatDaysUntilExpiry } from '../../shared/domain';
-import { formatDateReadable } from '../../shared/i18n';
+import { localizeActivityTitleById } from '../../shared/hindiContent';
+import { formatDateReadable, localizeAgeGroupLabel, localizeDomainName } from '../../shared/i18n';
 import type {
   ActivityHistoryRecord,
   ActivityHistoryReviewFilter,
@@ -65,45 +66,64 @@ function getIsoDaysAgo(daysAgo: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function getCompletionLabel(status: JourneyDisplayStatus): { text: string; toneClass: string } {
+function getCompletionLabel(
+  status: JourneyDisplayStatus,
+  locale: LocaleCode
+): { text: string; toneClass: string } {
+  const isHi = locale === 'hi';
   switch (status) {
     case 'reviewed':
-      return { text: 'Reviewed', toneClass: 'text-sage font-medium' };
+      return { text: isHi ? 'समीक्षा पूर्ण' : 'Reviewed', toneClass: 'text-sage font-medium' };
     case 'submitted_for_review':
-      return { text: 'Submitted for review', toneClass: 'text-lavender-ink font-medium' };
+      return {
+        text: isHi ? 'समीक्षा के लिए भेजा गया' : 'Submitted for review',
+        toneClass: 'text-lavender-ink font-medium',
+      };
     case 'completed':
-      return { text: 'Completed', toneClass: 'text-sage font-medium' };
+      return { text: isHi ? 'पूर्ण' : 'Completed', toneClass: 'text-sage font-medium' };
     case 'in_progress':
-      return { text: 'In progress', toneClass: 'text-peach-ink font-medium' };
+      return { text: isHi ? 'जारी है' : 'In progress', toneClass: 'text-peach-ink font-medium' };
     case 'not_started':
     default:
-      return { text: 'Not started', toneClass: 'text-muted font-medium' };
+      return { text: isHi ? 'शुरू नहीं हुई' : 'Not started', toneClass: 'text-muted font-medium' };
   }
 }
 
-function getReviewStatusSummary(sub: VideoSubmissionSummary | null): {
+function getReviewStatusSummary(
+  sub: VideoSubmissionSummary | null,
+  locale: LocaleCode
+): {
   text: string;
   toneClass: string;
 } {
+  const isHi = locale === 'hi';
   if (!sub || sub.reviewStatus === 'deleted') {
-    return { text: 'No video submitted', toneClass: 'text-muted' };
+    return { text: isHi ? 'कोई वीडियो नहीं भेजा गया' : 'No video submitted', toneClass: 'text-muted' };
   }
   if (sub.review) {
     if (sub.review.isAssessable && sub.review.instructionMatchScorePct !== null) {
       return {
-        text: `Reviewed · ${sub.review.instructionMatchScorePct}% match`,
+        text: isHi
+          ? `समीक्षा पूर्ण · ${sub.review.instructionMatchScorePct}% मिलान`
+          : `Reviewed · ${sub.review.instructionMatchScorePct}% match`,
         toneClass: 'text-sage font-medium',
       };
     }
-    return { text: 'Reviewed · Not Assessable', toneClass: 'text-peach-ink font-medium' };
+    return {
+      text: isHi ? 'समीक्षा पूर्ण · मूल्यांकन संभव नहीं' : 'Reviewed · Not Assessable',
+      toneClass: 'text-peach-ink font-medium',
+    };
   }
   if (sub.reviewStatus === 'in_review') {
-    return { text: 'Under review', toneClass: 'text-peach-ink font-medium' };
+    return { text: isHi ? 'समीक्षा जारी है' : 'Under review', toneClass: 'text-peach-ink font-medium' };
   }
   if (sub.reviewStatus === 'resubmit_requested') {
-    return { text: 'Changes requested', toneClass: 'text-peach-ink font-medium' };
+    return { text: isHi ? 'सुधार का अनुरोध' : 'Changes requested', toneClass: 'text-peach-ink font-medium' };
   }
-  return { text: 'Pending review', toneClass: 'text-lavender-ink font-medium' };
+  return {
+    text: isHi ? 'समीक्षा लंबित' : 'Pending review',
+    toneClass: 'text-lavender-ink font-medium',
+  };
 }
 
 function ReviewFeedbackBreakdown({
@@ -327,6 +347,9 @@ export function ProgressDashboardSection({
         )
       : 0;
 
+  const isHi = locale === 'hi';
+  const localizedAgeLabel = localizeAgeGroupLabel(journey.child.ageGroupLabel, locale);
+
   return (
     <div className="space-y-8">
       {/* Warm Montessori Editorial Header Card with Friendly Illustration */}
@@ -335,26 +358,32 @@ export function ProgressDashboardSection({
           <div className="lg:col-span-7 p-6 sm:p-8 flex flex-col justify-between gap-6">
             <div className="space-y-2.5">
               <p className="text-xs text-muted">
-                {journey.child.ageGroupLabel} <span aria-hidden="true">·</span> Learning Participation
-                Journal
+                {localizedAgeLabel} <span aria-hidden="true">·</span>{' '}
+                {isHi ? 'सीखने की सहभागिता डायरी' : 'Learning Participation Journal'}
               </p>
               <h2 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal text-balance">
-                {journey.child.displayName}’s Learning Journey
+                {isHi
+                  ? `${journey.child.displayName} की सीखने की यात्रा`
+                  : `${journey.child.displayName}’s Learning Journey`}
               </h2>
               <p className="text-sm text-muted leading-relaxed max-w-xl">
-                See the everyday moments you have explored together, revisit past activities, and
-                read warm caregiver feedback—always at your own calm pace.
+                {isHi
+                  ? 'साथ बिताए हर रोज़ के पलों को देखें, पुरानी गतिविधियाँ दोहराएँ, और देखभालकर्ता के लिए स्नेहभरी प्रतिक्रिया पढ़ें — हमेशा अपनी शांत गति से।'
+                  : 'See the everyday moments you have explored together, revisit past activities, and read warm caregiver feedback—always at your own calm pace.'}
               </p>
             </div>
 
             <div className="space-y-2.5 pt-2 border-t border-border">
               <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
                 <span className="font-medium text-charcoal">
-                  Stage participation ({journey.child.ageGroupLabel})
+                  {isHi
+                    ? `इस चरण की सहभागिता (${localizedAgeLabel})`
+                    : `Stage participation (${localizedAgeLabel})`}
                 </span>
                 <span className="font-mono text-xs text-sage tabular-nums">
-                  {summary?.activitiesCompletedStage ?? 0} of {summary?.totalStageActivities ?? 0}{' '}
-                  activities completed · {stageCompletionPct}%
+                  {isHi
+                    ? `${summary?.totalStageActivities ?? 0} में से ${summary?.activitiesCompletedStage ?? 0} गतिविधियाँ पूर्ण · ${stageCompletionPct}%`
+                    : `${summary?.activitiesCompletedStage ?? 0} of ${summary?.totalStageActivities ?? 0} activities completed · ${stageCompletionPct}%`}
                 </span>
               </div>
               <ProgressIndicator
@@ -394,66 +423,82 @@ export function ProgressDashboardSection({
       {/* 6 Required Progress Dashboard Metrics (Clean Hairline Cards, Zero Leaderboards) */}
       <section aria-label="Progress summary metrics" className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="space-y-1.5">
-          <p className="text-xs text-muted">Activities Completed</p>
+          <p className="text-xs text-muted">{isHi ? 'पूर्ण गतिविधियाँ' : 'Activities Completed'}</p>
           <p className="font-mono text-3xl font-semibold text-charcoal tabular-nums">
             {summary?.activitiesCompletedStage ?? 0}
           </p>
           <p className="text-xs text-muted">
-            In {journey.child.ageGroupLabel} ·{' '}
+            {isHi ? `${localizedAgeLabel} में · कुल ` : `In ${localizedAgeLabel} · `}
             <span className="font-mono tabular-nums">{summary?.totalCompletionsAllTime ?? 0}</span>{' '}
-            sessions total
+            {isHi ? 'सत्र' : 'sessions total'}
           </p>
         </Card>
 
         <Card className="space-y-1.5">
-          <p className="text-xs text-muted">Activities Remaining</p>
+          <p className="text-xs text-muted">{isHi ? 'शेष गतिविधियाँ' : 'Activities Remaining'}</p>
           <p className="font-mono text-3xl font-semibold text-charcoal tabular-nums">
             {summary?.activitiesRemainingStage ?? 0}
           </p>
           <p className="text-xs text-muted">
-            Ready whenever you want something new in this stage
+            {isHi
+              ? 'इस चरण में जब चाहें नया अभ्यास करें'
+              : 'Ready whenever you want something new in this stage'}
           </p>
         </Card>
 
         <Card className="space-y-1.5">
-          <p className="text-xs text-muted">Weekly Consistency</p>
+          <p className="text-xs text-muted">{isHi ? 'साप्ताहिक निरंतरता' : 'Weekly Consistency'}</p>
           <p className="font-mono text-3xl font-semibold text-sage tabular-nums">
             {summary?.activeDaysThisWeek ?? 0}
-            <span className="text-base font-normal text-muted"> / 7 days</span>
+            <span className="text-base font-normal text-muted">
+              {isHi ? ' / 7 दिन' : ' / 7 days'}
+            </span>
           </p>
           <p className="text-xs text-muted">
             <span className="font-mono tabular-nums">{weeklyTotal}</span>{' '}
-            {weeklyTotal === 1 ? 'activity' : 'activities'} practiced this week
+            {isHi
+              ? 'गतिविधियाँ इस सप्ताह की गईं'
+              : `${weeklyTotal === 1 ? 'activity' : 'activities'} practiced this week`}
           </p>
         </Card>
 
         <Card className="space-y-1.5">
-          <p className="text-xs text-muted">Domain Participation</p>
+          <p className="text-xs text-muted">{isHi ? 'विकास क्षेत्रों में सहभागिता' : 'Domain Participation'}</p>
           <p className="font-mono text-3xl font-semibold text-charcoal tabular-nums">
             {domainsParticipated}
-            <span className="text-base font-normal text-muted"> / 6 areas</span>
+            <span className="text-base font-normal text-muted">
+              {isHi ? ' / 6 क्षेत्र' : ' / 6 areas'}
+            </span>
           </p>
-          <p className="text-xs text-muted">Development areas practiced so far</p>
+          <p className="text-xs text-muted">
+            {isHi ? 'अब तक अभ्यास किए गए विकास क्षेत्र' : 'Development areas practiced so far'}
+          </p>
         </Card>
 
         <Card className="space-y-1.5">
-          <p className="text-xs text-muted">Submitted Videos</p>
+          <p className="text-xs text-muted">{isHi ? 'भेजे गए वीडियो' : 'Submitted Videos'}</p>
           <p className="font-mono text-3xl font-semibold text-charcoal tabular-nums">
             {summary?.submittedVideosCount ?? 0}
           </p>
           <p className="text-xs text-muted">
             {summary && summary.pendingReviewsCount > 0
-              ? `${summary.pendingReviewsCount} currently with reviewers`
-              : 'Private practice clips shared'}
+              ? isHi
+                ? `${summary.pendingReviewsCount} समीक्षा के लिए लंबित`
+                : `${summary.pendingReviewsCount} currently with reviewers`
+              : isHi
+                ? 'निजी अभ्यास क्लिप साझा किए गए'
+                : 'Private practice clips shared'}
           </p>
         </Card>
 
         <Card className="space-y-1.5">
-          <p className="text-xs text-muted">Reviewed Activities</p>
+          <p className="text-xs text-muted">{isHi ? 'समीक्षित गतिविधियाँ' : 'Reviewed Activities'}</p>
           <p className="font-mono text-3xl font-semibold text-sage tabular-nums">
             {summary?.reviewedActivitiesCount ?? 0}
           </p>
-          <p className="text-xs text-muted">Caregiver coaching reviews received</p>
+          <p className="text-xs text-muted">
+            {isHi ? 'देखभालकर्ता मार्गदर्शन समीक्षाएँ प्राप्त' : 'Caregiver coaching reviews received'}
+          </p>
         </Card>
       </section>
 
@@ -462,18 +507,22 @@ export function ProgressDashboardSection({
         <div
           className="inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-cream border border-border"
           role="tablist"
-          aria-label="Progress sections"
+          aria-label={isHi ? 'प्रगति अनुभाग' : 'Progress sections'}
         >
           {(
             [
-              { id: 'overview', label: 'Progress Overview' },
+              { id: 'overview', label: isHi ? 'प्रगति सारांश' : 'Progress Overview' },
               {
                 id: 'activity-history',
-                label: `Activity History (${activityHistory.length})`,
+                label: isHi
+                  ? `गतिविधि इतिहास (${activityHistory.length})`
+                  : `Activity History (${activityHistory.length})`,
               },
               {
                 id: 'review-history',
-                label: `Review History (${reviewHistory.length})`,
+                label: isHi
+                  ? `समीक्षा इतिहास (${reviewHistory.length})`
+                  : `Review History (${reviewHistory.length})`,
               },
             ] as const
           ).map((tab) => (
@@ -495,7 +544,7 @@ export function ProgressDashboardSection({
         </div>
 
         <Button variant="subtle" size="sm" onClick={onGoToday}>
-          Back to Today’s Plan
+          {isHi ? 'आज की योजना पर वापस जाएँ' : 'Back to Today’s Plan'}
         </Button>
       </div>
 
@@ -641,7 +690,7 @@ export function ProgressDashboardSection({
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-2">
                         <p className="font-display text-base font-semibold text-charcoal">
-                          {stat.domainName}
+                          {localizeDomainName(stat.domainId, stat.domainName, locale)}
                         </p>
                         <span className="font-mono text-xs tabular-nums text-sage shrink-0">
                           {stat.completedCount}/{stat.availableCount}
@@ -655,8 +704,12 @@ export function ProgressDashboardSection({
                       />
                       <p className="text-xs text-muted">
                         {stat.completedCount === 0
-                          ? 'Not explored yet in this stage'
-                          : `${pct}% of stage activities tried`}
+                          ? isHi
+                            ? 'इस चरण में अभी प्रयास नहीं किया गया'
+                            : 'Not explored yet in this stage'
+                          : isHi
+                            ? `इस चरण की ${pct}% गतिविधियाँ की गईं`
+                            : `${pct}% of stage activities tried`}
                       </p>
                     </div>
                     <Button
@@ -665,7 +718,7 @@ export function ProgressDashboardSection({
                       rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
                       onClick={() => onExploreDomain(stat.domainId)}
                     >
-                      Explore Area
+                      {isHi ? 'क्षेत्र देखें' : 'Explore Area'}
                     </Button>
                   </Card>
                 );
@@ -713,12 +766,15 @@ export function ProgressDashboardSection({
               />
 
               <Select
-                label="Development domain"
+                label={isHi ? 'विकास क्षेत्र' : 'Development domain'}
                 value={domainFilter}
                 onChange={(e) => setDomainFilter(e.target.value)}
                 options={[
-                  { value: 'all', label: 'All six domains' },
-                  ...learningDomains.map((d) => ({ value: d.id, label: d.name })),
+                  { value: 'all', label: isHi ? 'सभी छह क्षेत्र' : 'All six domains' },
+                  ...learningDomains.map((d) => ({
+                    value: d.id,
+                    label: localizeDomainName(d.id, d.name, locale),
+                  })),
                 ]}
               />
 
@@ -794,8 +850,8 @@ export function ProgressDashboardSection({
           ) : (
             <Card padding="none" className="divide-y divide-border">
               {activityHistory.map((item) => {
-                const compMeta = getCompletionLabel(item.displayStatus);
-                const revMeta = getReviewStatusSummary(item.submission);
+                const compMeta = getCompletionLabel(item.displayStatus, locale);
+                const revMeta = getReviewStatusSummary(item.submission, locale);
                 return (
                   <button
                     key={item.completionId}
@@ -805,20 +861,24 @@ export function ProgressDashboardSection({
                   >
                     <div className="space-y-1 min-w-0">
                       <p className="text-xs text-muted">
-                        {item.domainName} <span aria-hidden="true">·</span>{' '}
-                        {item.ageGroupLabelSnapshot} <span aria-hidden="true">·</span>{' '}
-                        <span className="font-mono tabular-nums">{item.durationMinutes} min</span>{' '}
+                        {localizeDomainName(item.domainId, item.domainName, locale)}{' '}
+                        <span aria-hidden="true">·</span>{' '}
+                        {localizeAgeGroupLabel(item.ageGroupLabelSnapshot, locale)}{' '}
+                        <span aria-hidden="true">·</span>{' '}
+                        <span className="font-mono tabular-nums">
+                          {item.durationMinutes} {isHi ? 'मिनट' : 'min'}
+                        </span>{' '}
                         <span aria-hidden="true">·</span>{' '}
                         <span className="font-mono tabular-nums">
                           {formatDateReadable(item.activityDate, locale)}
                         </span>
                       </p>
                       <p className="font-display text-base font-semibold text-charcoal truncate">
-                        {item.activityTitle}
+                        {localizeActivityTitleById(item.activityId, item.activityTitle, locale)}
                       </p>
                       {item.caregiverNotes && (
                         <p className="text-xs text-muted line-clamp-1">
-                          Note: {item.caregiverNotes}
+                          {isHi ? 'नोट:' : 'Note:'} {item.caregiverNotes}
                         </p>
                       )}
                     </div>
@@ -829,7 +889,7 @@ export function ProgressDashboardSection({
                         {revMeta.text}
                       </span>
                       <span className="text-sage font-medium inline-flex items-center gap-1 pt-0.5">
-                        View details & review
+                        {isHi ? 'विवरण और समीक्षा देखें' : 'View details & review'}
                         <ArrowRight className="w-3 h-3" aria-hidden="true" />
                       </span>
                     </div>
@@ -869,11 +929,13 @@ export function ProgressDashboardSection({
                   <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
                     <div className="space-y-1">
                       <p className="text-xs text-muted">
-                        {sub.domainName} <span aria-hidden="true">·</span> {sub.ageGroupLabel}{' '}
+                        {localizeDomainName(sub.domainName, sub.domainName, locale)}{' '}
+                        <span aria-hidden="true">·</span>{' '}
+                        {localizeAgeGroupLabel(sub.ageGroupLabel, locale)}{' '}
                         <span aria-hidden="true">·</span> v{sub.activityVersion}
                       </p>
                       <h4 className="font-display text-xl font-semibold text-charcoal">
-                        {sub.activityTitle}
+                        {localizeActivityTitleById(sub.activityId, sub.activityTitle, locale)}
                       </h4>
                       <p className="text-xs text-muted font-mono tabular-nums">
                         Submitted {formatDateReadable(sub.createdAt, locale)}
@@ -979,10 +1041,20 @@ export function ProgressDashboardSection({
       <Modal
         open={Boolean(selectedHistoryItem)}
         onClose={() => setSelectedHistoryItem(null)}
-        title={selectedHistoryItem?.activityTitle ?? 'Activity Details'}
+        title={
+          selectedHistoryItem
+            ? localizeActivityTitleById(
+                selectedHistoryItem.activityId,
+                selectedHistoryItem.activityTitle,
+                locale
+              )
+            : isHi
+              ? 'गतिविधि विवरण'
+              : 'Activity Details'
+        }
         description={
           selectedHistoryItem
-            ? `${selectedHistoryItem.domainName} · ${selectedHistoryItem.ageGroupLabelSnapshot} · ${selectedHistoryItem.durationMinutes} min · ${formatPrepLevel(selectedHistoryItem.prepLevel)}`
+            ? `${localizeDomainName(selectedHistoryItem.domainId, selectedHistoryItem.domainName, locale)} · ${localizeAgeGroupLabel(selectedHistoryItem.ageGroupLabelSnapshot, locale)} · ${selectedHistoryItem.durationMinutes} ${isHi ? 'मिनट' : 'min'} · ${formatPrepLevel(selectedHistoryItem.prepLevel, locale)}`
             : undefined
         }
         size="lg"
@@ -990,7 +1062,7 @@ export function ProgressDashboardSection({
           selectedHistoryItem ? (
             <>
               <Button variant="secondary" size="sm" onClick={() => setSelectedHistoryItem(null)}>
-                Close
+                {isHi ? 'बंद करें' : 'Close'}
               </Button>
               <Button
                 variant="primary"
@@ -1002,7 +1074,7 @@ export function ProgressDashboardSection({
                   onOpenActivity(id);
                 }}
               >
-                Open Full Activity Guide
+                {isHi ? 'पूरी गतिविधि गाइड खोलें' : 'Open Full Activity Guide'}
               </Button>
             </>
           ) : undefined
@@ -1019,7 +1091,7 @@ export function ProgressDashboardSection({
               <div className="space-y-0.5">
                 <span className="text-muted flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
-                  Recorded Date
+                  {isHi ? 'तिथि' : 'Recorded Date'}
                 </span>
                 <p className="font-mono text-charcoal font-medium tabular-nums">
                   {formatDateReadable(selectedHistoryItem.activityDate, locale)}
@@ -1028,19 +1100,19 @@ export function ProgressDashboardSection({
               <div className="space-y-0.5">
                 <span className="text-muted flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                  Activity Status
+                  {isHi ? 'गतिविधि स्थिति' : 'Activity Status'}
                 </span>
-                <p className={getCompletionLabel(selectedHistoryItem.displayStatus).toneClass}>
-                  {getCompletionLabel(selectedHistoryItem.displayStatus).text}
+                <p className={getCompletionLabel(selectedHistoryItem.displayStatus, locale).toneClass}>
+                  {getCompletionLabel(selectedHistoryItem.displayStatus, locale).text}
                 </p>
               </div>
               <div className="space-y-0.5">
                 <span className="text-muted flex items-center gap-1">
                   <ClipboardCheck className="w-3.5 h-3.5" aria-hidden="true" />
-                  Review Status
+                  {isHi ? 'समीक्षा स्थिति' : 'Review Status'}
                 </span>
-                <p className={getReviewStatusSummary(selectedHistoryItem.submission).toneClass}>
-                  {getReviewStatusSummary(selectedHistoryItem.submission).text}
+                <p className={getReviewStatusSummary(selectedHistoryItem.submission, locale).toneClass}>
+                  {getReviewStatusSummary(selectedHistoryItem.submission, locale).text}
                 </p>
               </div>
             </div>

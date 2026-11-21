@@ -1,4 +1,5 @@
 import React from 'react';
+import { BrandLogo } from './BrandLogo';
 
 export interface TopBarNavItem {
   id: string;
@@ -33,9 +34,10 @@ export function TopBar({
         <button
           type="button"
           onClick={onBrandClick}
-          className="font-serif text-xl font-medium tracking-tight text-ink whitespace-nowrap shrink-0 cursor-pointer"
+          className="font-serif text-xl font-medium tracking-tight text-ink whitespace-nowrap shrink-0 cursor-pointer inline-flex items-center gap-2.5"
         >
-          LittleSteps
+          <BrandLogo size="md" />
+          <span>LittleSteps</span>
         </button>
 
         {/* Zone 2: Clean single-line text navigation links */}

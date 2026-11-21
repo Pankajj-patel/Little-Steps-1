@@ -39,6 +39,11 @@ import {
   CANONICAL_LEARNING_DOMAINS,
   resolveAgeGroupSlug,
 } from '../shared/domain';
+import {
+  localizeAgeGroupLabel,
+  localizeDomainGuide,
+  localizeDomainName,
+} from '../shared/i18n';
 import type {
   ChildProfile,
   LocaleCode,
@@ -50,69 +55,11 @@ interface ParentOnboardingViewProps {
   onNavigate: (target: NavigateTarget) => void;
 }
 
-const STEPS = [
-  { id: 1, shortLabel: 'Welcome', title: 'Welcome' },
-  { id: 2, shortLabel: 'Parent', title: 'Parent info' },
-  { id: 3, shortLabel: 'Baby', title: 'Baby info' },
-  { id: 4, shortLabel: 'Journey', title: '6 areas' },
-  { id: 5, shortLabel: 'Rhythm', title: 'Preferences' },
-  { id: 6, shortLabel: 'Ready', title: 'Complete' },
-] as const;
-
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const LANGUAGE_OPTIONS = [
   { value: 'en', label: 'English' },
-  { value: 'hi', label: 'हिन्दी (Hindi · beta)' },
-];
-
-const ACTIVITY_TIME_OPTIONS: Array<{
-  value: PreferredActivityTime;
-  title: string;
-  description: string;
-}> = [
-  {
-    value: 'morning',
-    title: 'Morning',
-    description: 'Calm sunlit play after morning feeds (8:00 AM – 11:30 AM).',
-  },
-  {
-    value: 'afternoon',
-    title: 'Afternoon',
-    description: 'Quiet floor time after midday nap (1:00 PM – 4:30 PM).',
-  },
-  {
-    value: 'evening',
-    title: 'Evening',
-    description: 'Unhurried bonding before dinner or bedtime (5:00 PM – 7:30 PM).',
-  },
-  {
-    value: 'flexible',
-    title: 'Flexible',
-    description: 'Whenever my baby is rested, fed, and comfortably alert.',
-  },
-];
-
-const NOTIFICATION_OPTIONS: Array<{
-  value: NotificationPreference;
-  title: string;
-  description: string;
-}> = [
-  {
-    value: 'daily_gentle',
-    title: 'Gentle daily reminder',
-    description: 'One calm nudge at your preferred activity time.',
-  },
-  {
-    value: 'weekly_summary',
-    title: 'Weekly summary only',
-    description: 'A single calm weekend reflection on completed moments.',
-  },
-  {
-    value: 'none',
-    title: 'No reminders',
-    description: 'I’ll open LittleSteps at my own pace without alerts.',
-  },
+  { value: 'hi', label: 'हिन्दी (Hindi)' },
 ];
 
 const DOMAIN_ICONS: Record<string, React.ReactNode> = {
@@ -180,6 +127,121 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
     user?.notificationPreference ?? 'daily_gentle'
   );
 
+  const isHi = preferredLocale === 'hi';
+
+  const handleLocaleChange = (nextLocale: LocaleCode) => {
+    setPreferredLocale(nextLocale);
+    setUser((prev) => (prev ? { ...prev, preferredLocale: nextLocale } : prev));
+  };
+
+  const steps = isHi
+    ? ([
+        { id: 1, shortLabel: 'स्वागत', title: 'स्वागत है' },
+        { id: 2, shortLabel: 'अभिभावक', title: 'अभिभावक विवरण' },
+        { id: 3, shortLabel: 'शिशु', title: 'शिशु विवरण' },
+        { id: 4, shortLabel: 'यात्रा', title: '6 विकास क्षेत्र' },
+        { id: 5, shortLabel: 'दिनचर्या', title: 'प्राथमिकताएँ' },
+        { id: 6, shortLabel: 'तैयार', title: 'पूर्ण' },
+      ] as const)
+    : ([
+        { id: 1, shortLabel: 'Welcome', title: 'Welcome' },
+        { id: 2, shortLabel: 'Parent', title: 'Parent info' },
+        { id: 3, shortLabel: 'Baby', title: 'Baby info' },
+        { id: 4, shortLabel: 'Journey', title: '6 areas' },
+        { id: 5, shortLabel: 'Rhythm', title: 'Preferences' },
+        { id: 6, shortLabel: 'Ready', title: 'Complete' },
+      ] as const);
+
+  const activityTimeOptions: Array<{
+    value: PreferredActivityTime;
+    title: string;
+    description: string;
+  }> = isHi
+    ? [
+        {
+          value: 'morning',
+          title: 'सुबह',
+          description: 'सुबह के दूध के बाद हल्की धूप में शांत खेल (8:00 AM – 11:30 AM)।',
+        },
+        {
+          value: 'afternoon',
+          title: 'दोपहर',
+          description: 'दोपहर की झपकी के बाद चटाई पर शांत समय (1:00 PM – 4:30 PM)।',
+        },
+        {
+          value: 'evening',
+          title: 'शाम',
+          description: 'रात के खाने या सोने से पहले प्यार भरा समय (5:00 PM – 7:30 PM)।',
+        },
+        {
+          value: 'flexible',
+          title: 'लचीला समय',
+          description: 'जब भी मेरा शिशु आराम करके, दूध पीकर प्रसन्न और जागा हो।',
+        },
+      ]
+    : [
+        {
+          value: 'morning',
+          title: 'Morning',
+          description: 'Calm sunlit play after morning feeds (8:00 AM – 11:30 AM).',
+        },
+        {
+          value: 'afternoon',
+          title: 'Afternoon',
+          description: 'Quiet floor time after midday nap (1:00 PM – 4:30 PM).',
+        },
+        {
+          value: 'evening',
+          title: 'Evening',
+          description: 'Unhurried bonding before dinner or bedtime (5:00 PM – 7:30 PM).',
+        },
+        {
+          value: 'flexible',
+          title: 'Flexible',
+          description: 'Whenever my baby is rested, fed, and comfortably alert.',
+        },
+      ];
+
+  const notificationOptions: Array<{
+    value: NotificationPreference;
+    title: string;
+    description: string;
+  }> = isHi
+    ? [
+        {
+          value: 'daily_gentle',
+          title: 'दैनिक कोमल याददिहानी',
+          description: 'आपके पसंदीदा समय पर दिन में केवल एक शांत संदेश।',
+        },
+        {
+          value: 'weekly_summary',
+          title: 'केवल साप्ताहिक सारांश',
+          description: 'सप्ताहांत में पूरे किए गए पलों का एक संक्षिप्त सारांश।',
+        },
+        {
+          value: 'none',
+          title: 'कोई याददिहानी नहीं',
+          description: 'मैं बिना अलर्ट के अपनी सुविधा से LittleSteps खोलूँगी।',
+        },
+      ]
+    : [
+        {
+          value: 'daily_gentle',
+          title: 'Gentle daily reminder',
+          description: 'One calm nudge at your preferred activity time.',
+        },
+        {
+          value: 'weekly_summary',
+          title: 'Weekly summary only',
+          description: 'A single calm weekend reflection on completed moments.',
+        },
+        {
+          value: 'none',
+          title: 'No reminders',
+          description: 'I’ll open LittleSteps at my own pace without alerts.',
+        },
+      ];
+
   // Hydrate existing child if parent returns mid-onboarding or refreshes page
   useEffect(() => {
     let active = true;
@@ -211,7 +273,9 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
   ) => {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      const msg = 'Please choose a photo smaller than 5 MB.';
+      const msg = isHi
+        ? 'कृपया 5 MB से छोटी फ़ोटो चुनें।'
+        : 'Please choose a photo smaller than 5 MB.';
       if (target === 'parent') setParentErrors((p) => ({ ...p, photo: msg }));
       else setBabyErrors((p) => ({ ...p, photo: msg }));
       return;
@@ -234,11 +298,18 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
       }
       notify({
         tone: 'success',
-        title: 'Photo added',
-        description: 'Stored privately and visible only to your account.',
+        title: isHi ? 'फ़ोटो जोड़ दी गई' : 'Photo added',
+        description: isHi
+          ? 'निजी रूप से सहेजी गई और केवल आपके खाते में दिखाई देगी।'
+          : 'Stored privately and visible only to your account.',
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unable to upload photo.';
+      const msg =
+        err instanceof Error
+          ? err.message
+          : isHi
+            ? 'फ़ोटो अपलोड नहीं हो सकी।'
+            : 'Unable to upload photo.';
       if (target === 'parent') setParentErrors((p) => ({ ...p, photo: msg }));
       else setBabyErrors((p) => ({ ...p, photo: msg }));
     } finally {
@@ -252,10 +323,14 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
     setServerError(null);
     const nextErrors: { fullName?: string; email?: string } = {};
     if (parentName.trim().length < 2) {
-      nextErrors.fullName = 'Please enter your name (at least 2 characters).';
+      nextErrors.fullName = isHi
+        ? 'कृपया अपना नाम दर्ज करें (कम से कम 2 अक्षर)।'
+        : 'Please enter your name (at least 2 characters).';
     }
     if (!parentEmail.trim() || !EMAIL_REGEX.test(parentEmail.trim())) {
-      nextErrors.email = 'Please enter a valid email address.';
+      nextErrors.email = isHi
+        ? 'कृपया एक मान्य ईमेल पता दर्ज करें।'
+        : 'Please enter a valid email address.';
     }
     setParentErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
@@ -275,7 +350,13 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
       setStep(3);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Unable to save your details.');
+      setServerError(
+        err instanceof Error
+          ? err.message
+          : isHi
+            ? 'आपका विवरण सहेजा नहीं जा सका।'
+            : 'Unable to save your details.'
+      );
     } finally {
       setSaving(false);
     }
@@ -286,12 +367,18 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
     setServerError(null);
     const nextErrors: { babyName?: string; babyDob?: string } = {};
     if (babyName.trim().length < 1) {
-      nextErrors.babyName = 'Please enter your baby’s name or preferred nickname.';
+      nextErrors.babyName = isHi
+        ? 'कृपया अपने शिशु का नाम या प्यार का नाम दर्ज करें।'
+        : 'Please enter your baby’s name or preferred nickname.';
     }
     if (!babyDob || !/^\d{4}-\d{2}-\d{2}$/.test(babyDob)) {
-      nextErrors.babyDob = 'Please select your baby’s date of birth.';
+      nextErrors.babyDob = isHi
+        ? 'कृपया अपने शिशु की जन्म तिथि चुनें।'
+        : 'Please select your baby’s date of birth.';
     } else if (new Date(babyDob).getTime() > Date.now()) {
-      nextErrors.babyDob = 'Date of birth cannot be in the future.';
+      nextErrors.babyDob = isHi
+        ? 'जन्म तिथि भविष्य की नहीं हो सकती।'
+        : 'Date of birth cannot be in the future.';
     }
     setBabyErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
@@ -309,7 +396,13 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
       setStep(4);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Unable to save baby details.');
+      setServerError(
+        err instanceof Error
+          ? err.message
+          : isHi
+            ? 'शिशु का विवरण सहेजा नहीं जा सका।'
+            : 'Unable to save baby details.'
+      );
     } finally {
       setSaving(false);
     }
@@ -330,7 +423,13 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
       setStep(6);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Unable to save preferences.');
+      setServerError(
+        err instanceof Error
+          ? err.message
+          : isHi
+            ? 'प्राथमिकताएँ सहेजी नहीं जा सकीं।'
+            : 'Unable to save preferences.'
+      );
     } finally {
       setSaving(false);
     }
@@ -349,12 +448,22 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
       setUser(completedUser);
       notify({
         tone: 'success',
-        title: `Welcome, ${completedUser.fullName.split(' ')[0]}!`,
-        description: `${existingChild?.displayName || 'Your baby'}’s daily activities are ready.`,
+        title: isHi
+          ? `स्वागत है, ${completedUser.fullName.split(' ')[0]}!`
+          : `Welcome, ${completedUser.fullName.split(' ')[0]}!`,
+        description: isHi
+          ? `${existingChild?.displayName || 'आपके शिशु'} की दैनिक गतिविधियाँ तैयार हैं।`
+          : `${existingChild?.displayName || 'Your baby'}’s daily activities are ready.`,
       });
       onNavigate('/');
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Unable to complete onboarding.');
+      setServerError(
+        err instanceof Error
+          ? err.message
+          : isHi
+            ? 'सेटअप पूरा करने में समस्या आई।'
+            : 'Unable to complete onboarding.'
+      );
     } finally {
       setSaving(false);
     }
@@ -362,11 +471,12 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
 
   const matchedMonths =
     babyDob && /^\d{4}-\d{2}-\d{2}$/.test(babyDob) ? calculateAgeInMonths(babyDob) : null;
-  const matchedBandLabel =
+  const matchedSlug = matchedMonths !== null ? resolveAgeGroupSlug(matchedMonths) : existingChild?.ageGroupSlug ?? '0-3m';
+  const rawMatchedLabel =
     matchedMonths !== null
-      ? CANONICAL_AGE_GROUPS.find((g) => g.slug === resolveAgeGroupSlug(matchedMonths))?.label ??
-        '0–3 months'
+      ? CANONICAL_AGE_GROUPS.find((g) => g.slug === matchedSlug)?.label ?? '0–3 months'
       : existingChild?.ageGroupLabel ?? '0–3 months';
+  const matchedBandLabel = localizeAgeGroupLabel(matchedSlug, rawMatchedLabel, preferredLocale);
 
   const canJumpToStep = (targetStep: number) => {
     if (targetStep < step) return true;
@@ -380,31 +490,56 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-6">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-8 pb-24 sm:pt-12 sm:pb-24 space-y-6">
       {/* Stepper Header */}
-      <nav aria-label="Onboarding progress" className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-mono text-xs text-sage tabular-nums">
-            Step {step} of {STEPS.length}
-          </span>
-          <span className="text-xs text-muted">
-            {STEPS[step - 1]?.title}
-          </span>
+      <nav aria-label={isHi ? 'सेटअप प्रगति' : 'Onboarding progress'} className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-xs text-sage tabular-nums">
+              {isHi ? `चरण ${step} / ${steps.length}` : `Step ${step} of ${steps.length}`}
+            </span>
+            <span className="text-xs text-muted">{steps[step - 1]?.title}</span>
+          </div>
+
+          {/* Quick Language Toggle always available during onboarding */}
+          <div
+            role="group"
+            aria-label="Language"
+            className="inline-flex rounded-lg border border-border bg-surface p-0.5 text-xs"
+          >
+            <button
+              type="button"
+              onClick={() => handleLocaleChange('en')}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                preferredLocale === 'en'
+                  ? 'bg-sage text-white'
+                  : 'text-muted hover:text-charcoal'
+              }`}
+            >
+              English
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLocaleChange('hi')}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                preferredLocale === 'hi'
+                  ? 'bg-sage text-white'
+                  : 'text-muted hover:text-charcoal'
+              }`}
+            >
+              हिन्दी
+            </button>
+          </div>
         </div>
 
         {/* Mobile compact bar */}
         <div className="sm:hidden">
-          <ProgressIndicator
-            value={step}
-            max={STEPS.length}
-            tone="sage"
-            size="sm"
-          />
+          <ProgressIndicator value={step} max={steps.length} tone="sage" size="sm" />
         </div>
 
         {/* Desktop 6-step horizontal stepper */}
         <ol className="hidden sm:grid grid-cols-6 gap-2">
-          {STEPS.map((s) => {
+          {steps.map((s) => {
             const isDone = s.id < step;
             const isCurrent = s.id === step;
             return (
@@ -454,37 +589,53 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
       {step === 1 && (
         <Card padding="lg" className="space-y-6">
           <div className="space-y-3">
-            <Badge tone="sage">Guided Setup · 2 minutes</Badge>
+            <Badge tone="sage">
+              {isHi ? 'सरल सेटअप · 2 मिनट' : 'Guided Setup · 2 minutes'}
+            </Badge>
             <h1 className="font-display text-3xl sm:text-4xl font-semibold text-charcoal leading-tight">
-              Let's get to know your little one.
+              {isHi
+                ? 'आइए आपके नन्हे शिशु को जानें।'
+                : "Let's get to know your little one."}
             </h1>
             <p className="text-sm sm:text-base text-muted leading-relaxed">
-              Sharing a few simple details helps LittleSteps match gentle, age-appropriate daily
-              activities to your baby’s exact stage — without overwhelming you with information you
-              don’t need yet.
+              {isHi
+                ? 'कुछ सरल जानकारी साझा करने से LittleSteps आपके शिशु की ठीक उम्र के अनुसार शांत और व्यावहारिक दैनिक गतिविधियाँ तैयार कर पाता है—बिना किसी अनावश्यक बोझ के।'
+                : 'Sharing a few simple details helps LittleSteps match gentle, age-appropriate daily activities to your baby’s exact stage — without overwhelming you with information you don’t need yet.'}
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="rounded-xl bg-cream/70 border border-border p-4 space-y-1.5">
               <Baby className="w-5 h-5 text-sage" aria-hidden="true" />
-              <p className="text-sm font-medium text-charcoal">Matched to age</p>
+              <p className="text-sm font-medium text-charcoal">
+                {isHi ? 'उम्र के अनुसार चयन' : 'Matched to age'}
+              </p>
               <p className="text-xs text-muted leading-relaxed">
-                Automatically selects the right 3-month developmental window (0–24 months).
+                {isHi
+                  ? '0–24 महीने के बीच सही 3-महीने की विकास अवस्था स्वतः चुनता है।'
+                  : 'Automatically selects the right 3-month developmental window (0–24 months).'}
               </p>
             </div>
             <div className="rounded-xl bg-cream/70 border border-border p-4 space-y-1.5">
               <Clock className="w-5 h-5 text-sage" aria-hidden="true" />
-              <p className="text-sm font-medium text-charcoal">Fits your rhythm</p>
+              <p className="text-sm font-medium text-charcoal">
+                {isHi ? 'आपकी दिनचर्या के अनुरूप' : 'Fits your rhythm'}
+              </p>
               <p className="text-xs text-muted leading-relaxed">
-                Choose your preferred daily window and gentle reminder pace.
+                {isHi
+                  ? 'अपना पसंदीदा दैनिक समय और शांत याददिहानी की गति चुनें।'
+                  : 'Choose your preferred daily window and gentle reminder pace.'}
               </p>
             </div>
             <div className="rounded-xl bg-cream/70 border border-border p-4 space-y-1.5">
               <ShieldCheck className="w-5 h-5 text-sage" aria-hidden="true" />
-              <p className="text-sm font-medium text-charcoal">Private by design</p>
+              <p className="text-sm font-medium text-charcoal">
+                {isHi ? 'पूरी तरह निजी' : 'Private by design'}
+              </p>
               <p className="text-xs text-muted leading-relaxed">
-                Only you can access your family profile, photos, and baby’s details.
+                {isHi
+                  ? 'आपकी पारिवारिक प्रोफ़ाइल, फ़ोटो और शिशु की जानकारी केवल आपके लिए सुरक्षित है।'
+                  : 'Only you can access your family profile, photos, and baby’s details.'}
               </p>
             </div>
           </div>
@@ -494,10 +645,21 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
               <div className="flex items-start gap-2.5">
                 <MailCheck className="w-5 h-5 text-peach-ink shrink-0 mt-0.5" aria-hidden="true" />
                 <div className="space-y-0.5">
-                  <p className="text-sm font-medium text-charcoal">Verify your email anytime</p>
+                  <p className="text-sm font-medium text-charcoal">
+                    {isHi ? 'अपना ईमेल कभी भी सत्यापित करें' : 'Verify your email anytime'}
+                  </p>
                   <p className="text-xs text-muted">
-                    We prepared a verification link for <span className="font-medium">{user.email}</span>.
-                    You can confirm now or after setup.
+                    {isHi ? (
+                      <>
+                        हमने <span className="font-medium">{user.email}</span> के लिए सत्यापन लिंक तैयार किया है। आप अभी या सेटअप के बाद पुष्टि कर सकती हैं।
+                      </>
+                    ) : (
+                      <>
+                        We prepared a verification link for{' '}
+                        <span className="font-medium">{user.email}</span>. You can confirm now or
+                        after setup.
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -508,14 +670,16 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                   onNavigate((verificationPreviewPath || '/verify-email') as NavigateTarget)
                 }
               >
-                Verify Email
+                {isHi ? 'ईमेल सत्यापित करें' : 'Verify Email'}
               </Button>
             </div>
           )}
 
           <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p className="text-xs text-muted">
-              You can go back and edit any answer before finishing.
+              {isHi
+                ? 'समाप्त करने से पहले आप किसी भी चरण में वापस जाकर बदलाव कर सकती हैं।'
+                : 'You can go back and edit any answer before finishing.'}
             </p>
             <Button
               variant="primary"
@@ -523,7 +687,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
               rightIcon={<ArrowRight className="w-4 h-4" />}
               onClick={() => setStep(2)}
             >
-              Get Started
+              {isHi ? 'शुरू करें' : 'Get Started'}
             </Button>
           </div>
         </Card>
@@ -535,13 +699,16 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
       {step === 2 && (
         <Card padding="lg" className="space-y-6">
           <div className="space-y-2">
-            <Badge tone="neutral">Step 2 · Parent Details</Badge>
+            <Badge tone="neutral">
+              {isHi ? 'चरण 2 · अभिभावक विवरण' : 'Step 2 · Parent Details'}
+            </Badge>
             <h2 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal">
-              Tell us a little about you
+              {isHi ? 'अपने बारे में थोड़ा बताएँ' : 'Tell us a little about you'}
             </h2>
             <p className="text-sm text-muted leading-relaxed">
-              We use your name, email, and language choice to personalize daily guidance and keep
-              your family account secure.
+              {isHi
+                ? 'हम आपके नाम, ईमेल और भाषा के चुनाव का उपयोग दैनिक मार्गदर्शन को व्यक्तिगत बनाने और खाते को सुरक्षित रखने के लिए करते हैं।'
+                : 'We use your name, email, and language choice to personalize daily guidance and keep your family account secure.'}
             </p>
           </div>
 
@@ -561,11 +728,15 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
               </div>
               <div className="flex-1 space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-medium text-charcoal">Profile photo</p>
-                  <Badge tone="neutral">Optional</Badge>
+                  <p className="text-sm font-medium text-charcoal">
+                    {isHi ? 'प्रोफ़ाइल फ़ोटो' : 'Profile photo'}
+                  </p>
+                  <Badge tone="neutral">{isHi ? 'वैकल्पिक' : 'Optional'}</Badge>
                 </div>
                 <p className="text-xs text-muted">
-                  Only visible to you inside your private workspace (JPG, PNG, or WebP up to 5 MB).
+                  {isHi
+                    ? 'केवल आपके निजी कार्यक्षेत्र में दिखाई देगी (JPG, PNG, या WebP, अधिकतम 5 MB)।'
+                    : 'Only visible to you inside your private workspace (JPG, PNG, or WebP up to 5 MB).'}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <input
@@ -586,7 +757,13 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                     leftIcon={<Camera className="w-4 h-4" />}
                     onClick={() => parentPhotoInputRef.current?.click()}
                   >
-                    {parentPhotoUrl ? 'Change Photo' : 'Add Photo'}
+                    {parentPhotoUrl
+                      ? isHi
+                        ? 'फ़ोटो बदलें'
+                        : 'Change Photo'
+                      : isHi
+                        ? 'फ़ोटो जोड़ें'
+                        : 'Add Photo'}
                   </Button>
                   {parentPhotoUrl && (
                     <Button
@@ -596,7 +773,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                       leftIcon={<Trash2 className="w-4 h-4" />}
                       onClick={() => setParentPhotoUrl(null)}
                     >
-                      Remove
+                      {isHi ? 'हटाएँ' : 'Remove'}
                     </Button>
                   )}
                 </div>
@@ -609,7 +786,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
             </div>
 
             <Input
-              label="Parent’s name"
+              label={isHi ? 'अभिभावक का नाम' : 'Parent’s name'}
               required
               autoComplete="name"
               value={parentName}
@@ -618,12 +795,16 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                 if (parentErrors.fullName) setParentErrors((p) => ({ ...p, fullName: undefined }));
               }}
               error={parentErrors.fullName}
-              placeholder="e.g., Meera Deshmukh"
-              helperText="How we greet you on your daily dashboard."
+              placeholder={isHi ? 'उदा., मीरा देशमुख' : 'e.g., Meera Deshmukh'}
+              helperText={
+                isHi
+                  ? 'आपके दैनिक डैशबोर्ड पर हम इसी नाम से आपका स्वागत करेंगे।'
+                  : 'How we greet you on your daily dashboard.'
+              }
             />
 
             <Input
-              label="Email address"
+              label={isHi ? 'ईमेल पता' : 'Email address'}
               type="email"
               required
               autoComplete="email"
@@ -634,16 +815,24 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
               }}
               error={parentErrors.email}
               placeholder="you@example.com"
-              helperText="Used for sign-in, password recovery, and account security notices."
+              helperText={
+                isHi
+                  ? 'साइन-इन, पासवर्ड रिकवरी और खाता सुरक्षा सूचनाओं के लिए।'
+                  : 'Used for sign-in, password recovery, and account security notices.'
+              }
             />
 
             <Select
-              label="Preferred language"
+              label={isHi ? 'पसंदीदा भाषा' : 'Preferred language'}
               required
               options={LANGUAGE_OPTIONS}
               value={preferredLocale}
-              onChange={(e) => setPreferredLocale(e.target.value as LocaleCode)}
-              helperText="English is full-featured today, with Hindi localization built into the platform."
+              onChange={(e) => handleLocaleChange(e.target.value as LocaleCode)}
+              helperText={
+                isHi
+                  ? 'अंग्रेज़ी और हिन्दी दोनों में सभी गतिविधियाँ और चरण-दर-चरण निर्देश उपलब्ध हैं।'
+                  : 'Full step-by-step instructions and guidance are available in both English and Hindi.'
+              }
             />
 
             {serverError && (
@@ -659,7 +848,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                 leftIcon={<ArrowLeft className="w-4 h-4" />}
                 onClick={goBack}
               >
-                Back
+                {isHi ? 'पीछे जाएँ' : 'Back'}
               </Button>
               <Button
                 type="submit"
@@ -667,7 +856,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                 loading={saving}
                 rightIcon={<ArrowRight className="w-4 h-4" />}
               >
-                Save & Continue
+                {isHi ? 'सहेजें और आगे बढ़ें' : 'Save & Continue'}
               </Button>
             </div>
           </form>
@@ -680,13 +869,16 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
       {step === 3 && (
         <Card padding="lg" className="space-y-6">
           <div className="space-y-2">
-            <Badge tone="neutral">Step 3 · Baby Details</Badge>
+            <Badge tone="neutral">
+              {isHi ? 'चरण 3 · शिशु का विवरण' : 'Step 3 · Baby Details'}
+            </Badge>
             <h2 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal">
-              About your baby
+              {isHi ? 'अपने शिशु के बारे में बताएँ' : 'About your baby'}
             </h2>
             <p className="text-sm text-muted leading-relaxed">
-              Your baby’s date of birth lets LittleSteps match the right 3-month age stage
-              automatically. Your baby’s profile stays completely private to your account.
+              {isHi
+                ? 'आपके शिशु की जन्म तिथि के आधार पर LittleSteps अपने आप सही 3-महीने का चरण चुन लेता है। यह जानकारी पूरी तरह निजी रहती है।'
+                : 'Your baby’s date of birth lets LittleSteps match the right 3-month age stage automatically. Your baby’s profile stays completely private to your account.'}
             </p>
           </div>
 
@@ -706,11 +898,15 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
               </div>
               <div className="flex-1 space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-medium text-charcoal">Baby’s photo</p>
-                  <Badge tone="neutral">Optional</Badge>
+                  <p className="text-sm font-medium text-charcoal">
+                    {isHi ? 'शिशु की फ़ोटो' : 'Baby’s photo'}
+                  </p>
+                  <Badge tone="neutral">{isHi ? 'वैकल्पिक' : 'Optional'}</Badge>
                 </div>
                 <p className="text-xs text-muted">
-                  Stored privately in your encrypted session vault — never shared publicly.
+                  {isHi
+                    ? 'आपके निजी सुरक्षित वॉल्ट में सहेजी जाती है—कभी सार्वजनिक नहीं की जाती।'
+                    : 'Stored privately in your encrypted session vault — never shared publicly.'}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <input
@@ -731,7 +927,13 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                     leftIcon={<Camera className="w-4 h-4" />}
                     onClick={() => babyPhotoInputRef.current?.click()}
                   >
-                    {babyPhotoUrl ? 'Change Photo' : 'Add Photo'}
+                    {babyPhotoUrl
+                      ? isHi
+                        ? 'फ़ोटो बदलें'
+                        : 'Change Photo'
+                      : isHi
+                        ? 'फ़ोटो जोड़ें'
+                        : 'Add Photo'}
                   </Button>
                   {babyPhotoUrl && (
                     <Button
@@ -741,7 +943,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                       leftIcon={<Trash2 className="w-4 h-4" />}
                       onClick={() => setBabyPhotoUrl(null)}
                     >
-                      Remove
+                      {isHi ? 'हटाएँ' : 'Remove'}
                     </Button>
                   )}
                 </div>
@@ -754,7 +956,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
             </div>
 
             <Input
-              label="Baby’s name or preferred nickname"
+              label={isHi ? 'शिशु का नाम या प्यार का नाम' : 'Baby’s name or preferred nickname'}
               required
               value={babyName}
               onChange={(e) => {
@@ -762,12 +964,16 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                 if (babyErrors.babyName) setBabyErrors((p) => ({ ...p, babyName: undefined }));
               }}
               error={babyErrors.babyName}
-              placeholder="e.g., Aarav or Guddu"
-              helperText="A nickname works wonderfully if you prefer not to use a full name."
+              placeholder={isHi ? 'उदा., आरव या गुड्डू' : 'e.g., Aarav or Guddu'}
+              helperText={
+                isHi
+                  ? 'यदि आप पूरा नाम नहीं लिखना चाहतीं तो प्यार का नाम भी लिख सकती हैं।'
+                  : 'A nickname works wonderfully if you prefer not to use a full name.'
+              }
             />
 
             <DatePicker
-              label="Baby’s date of birth"
+              label={isHi ? 'शिशु की जन्म तिथि' : 'Baby’s date of birth'}
               required
               max={todayIso}
               value={babyDob}
@@ -777,13 +983,18 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
               }}
               showBabyAgePreview
               error={babyErrors.babyDob}
-              helperText="Used strictly to match activities across our 8 age bands (0–24 months)."
+              helperText={
+                isHi
+                  ? 'केवल हमारे 8 आयु वर्गों (0–24 महीने) में गतिविधियाँ मिलाने के लिए।'
+                  : 'Used strictly to match activities across our 8 age bands (0–24 months).'
+              }
             />
 
             {matchedMonths !== null && matchedMonths > 24 && (
               <p className="text-xs text-peach-ink bg-peach-soft/80 border border-peach px-3.5 py-2.5 rounded-lg">
-                LittleSteps is designed for babies aged 0–24 months. We’ve matched your child to
-                our 21–24 months stage so you can still explore everyday toddler activities.
+                {isHi
+                  ? 'LittleSteps 0–24 महीने के शिशुओं के लिए बनाया गया है। हमने आपके बच्चे को 21–24 महीने के चरण से जोड़ा है ताकि आप सरल दैनिक गतिविधियाँ आज़मा सकें।'
+                  : 'LittleSteps is designed for babies aged 0–24 months. We’ve matched your child to our 21–24 months stage so you can still explore everyday toddler activities.'}
               </p>
             )}
 
@@ -793,9 +1004,11 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                   htmlFor="onboarding-activity-prefs"
                   className="block text-sm font-medium text-charcoal"
                 >
-                  Accessibility or activity preferences
+                  {isHi
+                    ? 'सुविधा या गतिविधि प्राथमिकताएँ'
+                    : 'Accessibility or activity preferences'}
                 </label>
-                <Badge tone="neutral">Optional</Badge>
+                <Badge tone="neutral">{isHi ? 'वैकल्पिक' : 'Optional'}</Badge>
               </div>
               <textarea
                 id="onboarding-activity-prefs"
@@ -803,11 +1016,17 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                 maxLength={500}
                 value={activityPreferences}
                 onChange={(e) => setActivityPreferences(e.target.value)}
-                placeholder="e.g., Prefers quiet floor play, sensitive to loud sounds, or any comfort notes you’d like to keep handy."
+                placeholder={
+                  isHi
+                    ? 'उदा., चटाई पर शांत खेल पसंद है, तेज़ आवाज़ से संवेदनशीलता, या कोई विशेष आराम नोट।'
+                    : 'e.g., Prefers quiet floor play, sensitive to loud sounds, or any comfort notes you’d like to keep handy.'
+                }
                 className="w-full rounded-lg border border-border-strong bg-surface px-3.5 py-2.5 text-sm text-charcoal placeholder:text-muted/70 hover:border-sage/70 focus:border-sage transition-colors"
               />
               <p className="text-xs text-muted">
-                Optional notes to help you remember gentle adaptations during daily play.
+                {isHi
+                  ? 'दैनिक खेल के दौरान सरल अनुकूलन याद रखने के लिए वैकल्पिक नोट्स।'
+                  : 'Optional notes to help you remember gentle adaptations during daily play.'}
               </p>
             </div>
 
@@ -824,7 +1043,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                 leftIcon={<ArrowLeft className="w-4 h-4" />}
                 onClick={goBack}
               >
-                Back
+                {isHi ? 'पीछे जाएँ' : 'Back'}
               </Button>
               <Button
                 type="submit"
@@ -832,7 +1051,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                 loading={saving}
                 rightIcon={<ArrowRight className="w-4 h-4" />}
               >
-                Save & Continue
+                {isHi ? 'सहेजें और आगे बढ़ें' : 'Save & Continue'}
               </Button>
             </div>
           </form>
@@ -845,13 +1064,18 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
       {step === 4 && (
         <Card padding="lg" className="space-y-6">
           <div className="space-y-2">
-            <Badge tone="lavender">Step 4 · Development Journey</Badge>
+            <Badge tone="lavender">
+              {isHi ? 'चरण 4 · विकास की यात्रा' : 'Step 4 · Development Journey'}
+            </Badge>
             <h2 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal">
-              Six gentle areas of early growth
+              {isHi
+                ? 'प्रारंभिक विकास के छह कोमल क्षेत्र'
+                : 'Six gentle areas of early growth'}
             </h2>
             <p className="text-sm text-muted leading-relaxed">
-              Each day, {existingChild?.displayName || 'your baby'} receives 2–3 calm, practical
-              activities balanced across these six everyday areas — never too much at once.
+              {isHi
+                ? `हर दिन ${existingChild?.displayName || 'आपके शिशु'} को इन छह क्षेत्रों में संतुलित 2–3 शांत और सरल गतिविधियाँ मिलती हैं—एक साथ बहुत अधिक नहीं।`
+                : `Each day, ${existingChild?.displayName || 'your baby'} receives 2–3 calm, practical activities balanced across these six everyday areas — never too much at once.`}
             </p>
           </div>
 
@@ -866,11 +1090,15 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                     {DOMAIN_ICONS[domain.slug] ?? <BookOpen className="w-5 h-5" />}
                   </span>
                   <h3 className="font-display text-base font-semibold text-charcoal">
-                    {domain.name}
+                    {localizeDomainName(domain.slug, domain.name, preferredLocale)}
                   </h3>
                 </div>
                 <p className="text-xs text-muted leading-relaxed">
-                  {DOMAIN_PLAIN_GUIDE[domain.slug] ?? domain.description}
+                  {localizeDomainGuide(
+                    domain.slug,
+                    DOMAIN_PLAIN_GUIDE[domain.slug] ?? domain.description,
+                    preferredLocale
+                  )}
                 </p>
               </div>
             ))}
@@ -879,9 +1107,12 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
           <div className="rounded-xl bg-cream border border-border p-4 flex items-start gap-3 text-xs text-muted leading-relaxed">
             <ShieldCheck className="w-4 h-4 text-sage shrink-0 mt-0.5" aria-hidden="true" />
             <p>
-              <strong className="text-charcoal font-medium">A reassuring promise:</strong>{' '}
-              LittleSteps never scores or grades your baby. Optional reviewer feedback only checks
-              how clearly an activity’s instructions were demonstrated so you feel supported.
+              <strong className="text-charcoal font-medium">
+                {isHi ? 'हमारा आश्वस्त करने वाला वादा:' : 'A reassuring promise:'}
+              </strong>{' '}
+              {isHi
+                ? 'LittleSteps कभी आपके शिशु को अंक या ग्रेड नहीं देता। वैकल्पिक समीक्षक सुझाव केवल यह देखते हैं कि गतिविधि के निर्देश कितनी स्पष्टता से किए गए ताकि आपको सहायता मिले।'
+                : 'LittleSteps never scores or grades your baby. Optional reviewer feedback only checks how clearly an activity’s instructions were demonstrated so you feel supported.'}
             </p>
           </div>
 
@@ -892,7 +1123,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
               leftIcon={<ArrowLeft className="w-4 h-4" />}
               onClick={goBack}
             >
-              Back
+              {isHi ? 'पीछे जाएँ' : 'Back'}
             </Button>
             <Button
               type="button"
@@ -903,7 +1134,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
             >
-              Personalize My Routine
+              {isHi ? 'मेरी दिनचर्या चुनें' : 'Personalize My Routine'}
             </Button>
           </div>
         </Card>
@@ -915,13 +1146,16 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
       {step === 5 && (
         <Card padding="lg" className="space-y-6">
           <div className="space-y-2">
-            <Badge tone="neutral">Step 5 · Personalization</Badge>
+            <Badge tone="neutral">
+              {isHi ? 'चरण 5 · व्यक्तिगत पसंद' : 'Step 5 · Personalization'}
+            </Badge>
             <h2 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal">
-              Shape a calm daily rhythm
+              {isHi ? 'अपनी शांत दैनिक लय तय करें' : 'Shape a calm daily rhythm'}
             </h2>
             <p className="text-sm text-muted leading-relaxed">
-              Tell us when play feels easiest in your day so reminders stay helpful and never
-              intrusive.
+              {isHi
+                ? 'बताएँ कि दिन में किस समय खेलना सबसे आसान लगता है ताकि याददिहानियाँ हमेशा सहायक और शांत रहें।'
+                : 'Tell us when play feels easiest in your day so reminders stay helpful and never intrusive.'}
             </p>
           </div>
 
@@ -930,10 +1164,10 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
             <fieldset className="space-y-2.5">
               <legend className="text-sm font-medium text-charcoal flex items-center gap-2">
                 <Clock className="w-4 h-4 text-sage" aria-hidden="true" />
-                Preferred daily activity time
+                {isHi ? 'दैनिक गतिविधि का पसंदीदा समय' : 'Preferred daily activity time'}
               </legend>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {ACTIVITY_TIME_OPTIONS.map((opt) => {
+                {activityTimeOptions.map((opt) => {
                   const selected = preferredActivityTime === opt.value;
                   return (
                     <label
@@ -968,10 +1202,10 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
             <fieldset className="space-y-2.5">
               <legend className="text-sm font-medium text-charcoal flex items-center gap-2">
                 <Bell className="w-4 h-4 text-sage" aria-hidden="true" />
-                Notification preference
+                {isHi ? 'सूचना प्राथमिकता' : 'Notification preference'}
               </legend>
               <div className="space-y-2.5">
-                {NOTIFICATION_OPTIONS.map((opt) => {
+                {notificationOptions.map((opt) => {
                   const selected = notificationPreference === opt.value;
                   return (
                     <label
@@ -1004,11 +1238,15 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
 
             {/* Preferred language */}
             <Select
-              label="Preferred language"
+              label={isHi ? 'पसंदीदा भाषा' : 'Preferred language'}
               options={LANGUAGE_OPTIONS}
               value={preferredLocale}
-              onChange={(e) => setPreferredLocale(e.target.value as LocaleCode)}
-              helperText="You can switch language preferences anytime."
+              onChange={(e) => handleLocaleChange(e.target.value as LocaleCode)}
+              helperText={
+                isHi
+                  ? 'आप अपनी भाषा की पसंद कभी भी बदल सकती हैं।'
+                  : 'You can switch language preferences anytime.'
+              }
             />
 
             {serverError && (
@@ -1024,7 +1262,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                 leftIcon={<ArrowLeft className="w-4 h-4" />}
                 onClick={goBack}
               >
-                Back
+                {isHi ? 'पीछे जाएँ' : 'Back'}
               </Button>
               <Button
                 type="submit"
@@ -1032,7 +1270,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
                 loading={saving}
                 rightIcon={<ArrowRight className="w-4 h-4" />}
               >
-                Review & Finish
+                {isHi ? 'समीक्षा करें और पूरा करें' : 'Review & Finish'}
               </Button>
             </div>
           </form>
@@ -1049,40 +1287,57 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
           </div>
 
           <div className="space-y-2 max-w-md mx-auto">
-            <Badge tone="sage">All Set</Badge>
+            <Badge tone="sage">{isHi ? 'सब तैयार है' : 'All Set'}</Badge>
             <h2 className="font-display text-3xl font-semibold text-charcoal">
-              You’re ready, {parentName.split(' ')[0] || 'Mama'}!
+              {isHi
+                ? `आप तैयार हैं, ${parentName.split(' ')[0] || 'मम्मा'}!`
+                : `You’re ready, ${parentName.split(' ')[0] || 'Mama'}!`}
             </h2>
             <p className="text-sm text-muted leading-relaxed">
-              We’ve prepared a calm daily plan for{' '}
-              <span className="font-medium text-charcoal">
-                {existingChild?.displayName || babyName}
-              </span>{' '}
-              in the <span className="font-medium text-sage">{matchedBandLabel}</span> stage.
+              {isHi ? (
+                <>
+                  हमने{' '}
+                  <span className="font-medium text-charcoal">
+                    {existingChild?.displayName || babyName}
+                  </span>{' '}
+                  के लिए <span className="font-medium text-sage">{matchedBandLabel}</span> चरण की
+                  शांत दैनिक योजना तैयार कर ली है।
+                </>
+              ) : (
+                <>
+                  We’ve prepared a calm daily plan for{' '}
+                  <span className="font-medium text-charcoal">
+                    {existingChild?.displayName || babyName}
+                  </span>{' '}
+                  in the <span className="font-medium text-sage">{matchedBandLabel}</span> stage.
+                </>
+              )}
             </p>
           </div>
 
           <div className="rounded-xl bg-cream/70 border border-border p-4 text-left grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <p className="text-xs text-muted">Little one</p>
+              <p className="text-xs text-muted">{isHi ? 'नन्हा शिशु' : 'Little one'}</p>
               <p className="text-sm font-medium text-charcoal">
                 {existingChild?.displayName || babyName} · {matchedBandLabel}
               </p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted">Daily activity window</p>
+              <p className="text-xs text-muted">
+                {isHi ? 'दैनिक गतिविधि समय' : 'Daily activity window'}
+              </p>
               <p className="text-sm font-medium text-charcoal">
-                {ACTIVITY_TIME_OPTIONS.find((o) => o.value === preferredActivityTime)?.title}
+                {activityTimeOptions.find((o) => o.value === preferredActivityTime)?.title}
               </p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted">Reminders</p>
+              <p className="text-xs text-muted">{isHi ? 'याददिहानी' : 'Reminders'}</p>
               <p className="text-sm font-medium text-charcoal">
-                {NOTIFICATION_OPTIONS.find((o) => o.value === notificationPreference)?.title}
+                {notificationOptions.find((o) => o.value === notificationPreference)?.title}
               </p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted">Language</p>
+              <p className="text-xs text-muted">{isHi ? 'भाषा' : 'Language'}</p>
               <p className="text-sm font-medium text-charcoal">
                 {LANGUAGE_OPTIONS.find((o) => o.value === preferredLocale)?.label}
               </p>
@@ -1102,7 +1357,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
               leftIcon={<ArrowLeft className="w-4 h-4" />}
               onClick={goBack}
             >
-              Edit Preferences
+              {isHi ? 'पसंद बदलें' : 'Edit Preferences'}
             </Button>
             <Button
               type="button"
@@ -1112,7 +1367,7 @@ export function ParentOnboardingView({ onNavigate }: ParentOnboardingViewProps) 
               rightIcon={<ArrowRight className="w-4 h-4" />}
               onClick={() => void handleFinishOnboarding()}
             >
-              Go to Today’s Dashboard
+              {isHi ? 'आज के डैशबोर्ड पर जाएँ' : 'Go to Today’s Dashboard'}
             </Button>
           </div>
         </Card>

@@ -605,7 +605,7 @@ export function AdminActivityManager({
         title={editingActivityId ? 'Edit Curriculum Activity' : 'Create New Activity'}
         size="lg"
       >
-        <form onSubmit={handleSaveActivity} className="space-y-6 max-h-[75vh] overflow-y-auto px-1 pr-2">
+        <form onSubmit={handleSaveActivity} className="space-y-6 pb-4">
           {/* Basic Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1 md:col-span-2">
@@ -1088,7 +1088,7 @@ export function AdminActivityManager({
         title={`Version History · ${activeVersionActivityTitle}`}
         size="md"
       >
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1 pr-1">
+        <div className="space-y-4 pb-4">
           <p className="text-xs text-muted leading-relaxed">
             LittleSteps automatically captures an immutable snapshot on every change. Past video
             submissions stay permanently evaluated against the exact version in effect when submitted.
@@ -1191,7 +1191,7 @@ export function AdminActivityManager({
         size="lg"
       >
         {previewDetail && (
-          <div className="space-y-5 max-h-[75vh] overflow-y-auto px-1 pr-2">
+          <div className="space-y-5 pb-4">
             <div className="flex items-center justify-between pb-3 border-b border-cream-accent/60">
               <div className="flex items-center gap-2">
                 <Badge tone={previewDetail.status === 'published' ? 'sage' : 'peach'}>

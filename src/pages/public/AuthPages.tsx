@@ -8,12 +8,13 @@ import {
   RefreshCw,
   ShieldCheck,
 } from 'lucide-react';
+import { BrandLogo } from '../../components/BrandLogo';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Card, Input, useToast } from '../../design-system';
 import { api } from '../../lib/api';
 import type { NavigateTarget } from '../../lib/router';
 
-import type { UserRole } from '../../shared/types';
+import type { LocaleCode, UserRole } from '../../shared/types';
 
 interface AuthPageProps {
   onNavigate: (route: NavigateTarget) => void;
@@ -127,8 +128,11 @@ export function LoginPage({ onNavigate, initialRole = 'parent' }: LoginPageProps
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 sm:px-6 py-12 sm:py-16 space-y-6">
-      <div className="text-center space-y-2">
+    <div className="max-w-md mx-auto px-4 sm:px-6 pt-12 pb-24 sm:py-16 space-y-6">
+      <div className="text-center space-y-2.5">
+        <div className="flex justify-center">
+          <BrandLogo size="lg" />
+        </div>
         <p className="font-mono text-xs text-sage tabular-nums">{activeMeta.eyebrow}</p>
         <h1 className="font-display text-3xl font-semibold text-charcoal">
           {activeMeta.heading}
@@ -253,6 +257,7 @@ export function RegisterPage({ onNavigate }: AuthPageProps) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [preferredLocale, setPreferredLocale] = useState<LocaleCode>('en');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{
@@ -264,6 +269,8 @@ export function RegisterPage({ onNavigate }: AuthPageProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isHi = preferredLocale === 'hi';
+
   const validate = () => {
     const next: {
       fullName?: string;
@@ -272,16 +279,24 @@ export function RegisterPage({ onNavigate }: AuthPageProps) {
       confirmPassword?: string;
     } = {};
     if (fullName.trim().length < 2) {
-      next.fullName = 'Please enter your name (at least 2 characters).';
+      next.fullName = isHi
+        ? 'कृपया अपना नाम दर्ज करें (कम से कम 2 अक्षर)।'
+        : 'Please enter your name (at least 2 characters).';
     }
     if (!email.trim() || !EMAIL_REGEX.test(email.trim())) {
-      next.email = 'Please enter a valid email address.';
+      next.email = isHi
+        ? 'कृपया एक मान्य ईमेल पता दर्ज करें।'
+        : 'Please enter a valid email address.';
     }
     if (password.length < 8) {
-      next.password = 'Password must be at least 8 characters long.';
+      next.password = isHi
+        ? 'पासवर्ड कम से कम 8 अक्षरों का होना चाहिए।'
+        : 'Password must be at least 8 characters long.';
     }
     if (confirmPassword !== password) {
-      next.confirmPassword = 'Passwords do not match. Please re-enter.';
+      next.confirmPassword = isHi
+        ? 'पासवर्ड मेल नहीं खाते। कृपया फिर से दर्ज करें।'
+        : 'Passwords do not match. Please re-enter.';
     }
     setFieldErrors(next);
     return Object.keys(next).length === 0;
@@ -298,36 +313,82 @@ export function RegisterPage({ onNavigate }: AuthPageProps) {
         email: email.trim(),
         phoneNumber: phoneNumber.trim() || undefined,
         password,
+        preferredLocale,
       });
       notify({
         tone: 'success',
-        title: 'Account created',
-        description: 'Let’s personalize LittleSteps for you and your baby.',
+        title: isHi ? 'खाता बन गया है' : 'Account created',
+        description: isHi
+          ? 'आइए आपके और आपके शिशु के लिए LittleSteps को व्यक्तिगत बनाएँ।'
+          : 'Let’s personalize LittleSteps for you and your baby.',
       });
       onNavigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to create your account.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : isHi
+            ? 'खाता बनाने में समस्या आई। कृपया पुनः प्रयास करें।'
+            : 'Unable to create your account.'
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="max-w-lg mx-auto px-4 sm:px-6 py-12 sm:py-16 space-y-6">
+    <div className="max-w-lg mx-auto px-4 sm:px-6 pt-10 pb-24 sm:py-16 space-y-6">
       <div className="text-center space-y-2">
-        <p className="font-mono text-xs text-sage tabular-nums">Start Your Journey</p>
+        <p className="font-mono text-xs text-sage tabular-nums">
+          {isHi ? 'अपनी यात्रा शुरू करें' : 'Start Your Journey'}
+        </p>
         <h1 className="font-display text-3xl font-semibold text-charcoal">
-          Create your parent account
+          {isHi ? 'अपना अभिभावक खाता बनाएँ' : 'Create your parent account'}
         </h1>
         <p className="text-sm text-muted">
-          Gentle, age-appropriate daily activities matched automatically to your baby’s stage.
+          {isHi
+            ? 'आपके शिशु की उम्र के अनुसार शांत और सरल दैनिक गतिविधियाँ।'
+            : 'Gentle, age-appropriate daily activities matched automatically to your baby’s stage.'}
         </p>
       </div>
 
       <Card className="space-y-5">
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          {/* Preferred Language Selector */}
+          <fieldset className="space-y-2">
+            <legend className="block text-sm font-medium text-charcoal">
+              {isHi ? 'पसंदीदा भाषा चुनें' : 'Preferred language'}
+            </legend>
+            <div className="grid grid-cols-2 gap-2.5">
+              {(
+                [
+                  { code: 'en', title: 'English', sub: 'Instructions in English' },
+                  { code: 'hi', title: 'हिन्दी (Hindi)', sub: 'सभी निर्देश हिन्दी में' },
+                ] as Array<{ code: LocaleCode; title: string; sub: string }>
+              ).map((lang) => {
+                const selected = preferredLocale === lang.code;
+                return (
+                  <button
+                    key={lang.code}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setPreferredLocale(lang.code)}
+                    className={`min-h-[48px] rounded-xl border px-3.5 py-2.5 text-left transition-colors cursor-pointer ${
+                      selected
+                        ? 'bg-sage-soft border-sage text-charcoal'
+                        : 'bg-surface border-border-strong text-muted hover:border-sage/60'
+                    }`}
+                  >
+                    <span className="block text-sm font-semibold text-charcoal">{lang.title}</span>
+                    <span className="block text-[11px] text-muted">{lang.sub}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+
           <Input
-            label="Your name"
+            label={isHi ? 'आपका नाम' : 'Your name'}
             required
             autoComplete="name"
             value={fullName}
@@ -336,12 +397,12 @@ export function RegisterPage({ onNavigate }: AuthPageProps) {
               if (fieldErrors.fullName) setFieldErrors((p) => ({ ...p, fullName: undefined }));
             }}
             error={fieldErrors.fullName}
-            placeholder="e.g., Priya Sharma"
+            placeholder={isHi ? 'उदा., प्रिया शर्मा' : 'e.g., Priya Sharma'}
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Email address"
+              label={isHi ? 'ईमेल पता' : 'Email address'}
               type="email"
               required
               autoComplete="email"
@@ -355,19 +416,23 @@ export function RegisterPage({ onNavigate }: AuthPageProps) {
             />
 
             <Input
-              label="Mobile number (Optional)"
+              label={isHi ? 'मोबाइल नंबर (वैकल्पिक)' : 'Mobile number (Optional)'}
               type="tel"
               autoComplete="tel"
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
               placeholder="+91 98xxx xxxxx"
-              helperText="Optional contact for account recovery."
+              helperText={
+                isHi
+                  ? 'खाता रिकवरी के लिए वैकल्पिक संपर्क।'
+                  : 'Optional contact for account recovery.'
+              }
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Create password"
+              label={isHi ? 'पासवर्ड बनाएँ' : 'Create password'}
               type="password"
               required
               minLength={8}
@@ -378,11 +443,11 @@ export function RegisterPage({ onNavigate }: AuthPageProps) {
                 if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: undefined }));
               }}
               error={fieldErrors.password}
-              placeholder="At least 8 characters"
+              placeholder={isHi ? 'कम से कम 8 अक्षर' : 'At least 8 characters'}
             />
 
             <Input
-              label="Confirm password"
+              label={isHi ? 'पासवर्ड की पुष्टि करें' : 'Confirm password'}
               type="password"
               required
               minLength={8}
@@ -395,7 +460,7 @@ export function RegisterPage({ onNavigate }: AuthPageProps) {
                 }
               }}
               error={fieldErrors.confirmPassword}
-              placeholder="Re-enter password"
+              placeholder={isHi ? 'पासवर्ड फिर से दर्ज करें' : 'Re-enter password'}
             />
           </div>
 
@@ -408,23 +473,47 @@ export function RegisterPage({ onNavigate }: AuthPageProps) {
           <div className="rounded-lg bg-cream/80 border border-border p-3.5 flex items-start gap-2.5 text-xs text-muted leading-relaxed">
             <ShieldCheck className="w-4 h-4 text-sage shrink-0 mt-0.5" aria-hidden="true" />
             <span>
-              By creating an account you agree to our{' '}
-              <button
-                type="button"
-                onClick={() => onNavigate('/terms')}
-                className="text-sage font-medium hover:underline cursor-pointer"
-              >
-                Terms & Conditions
-              </button>{' '}
-              and{' '}
-              <button
-                type="button"
-                onClick={() => onNavigate('/privacy')}
-                className="text-sage font-medium hover:underline cursor-pointer"
-              >
-                Privacy Policy
-              </button>
-              . Uploaded baby videos remain strictly private and auto-delete after 30 days.
+              {isHi ? (
+                <>
+                  खाता बनाकर आप हमारी{' '}
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('/terms')}
+                    className="text-sage font-medium hover:underline cursor-pointer"
+                  >
+                    नियम और शर्तों
+                  </button>{' '}
+                  और{' '}
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('/privacy')}
+                    className="text-sage font-medium hover:underline cursor-pointer"
+                  >
+                    गोपनीयता नीति
+                  </button>{' '}
+                  से सहमत होते हैं। अपलोड किए गए शिशु के वीडियो पूरी तरह निजी रहते हैं और 30 दिनों में स्वतः हट जाते हैं।
+                </>
+              ) : (
+                <>
+                  By creating an account you agree to our{' '}
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('/terms')}
+                    className="text-sage font-medium hover:underline cursor-pointer"
+                  >
+                    Terms & Conditions
+                  </button>{' '}
+                  and{' '}
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('/privacy')}
+                    className="text-sage font-medium hover:underline cursor-pointer"
+                  >
+                    Privacy Policy
+                  </button>
+                  . Uploaded baby videos remain strictly private and auto-delete after 30 days.
+                </>
+              )}
             </span>
           </div>
 
@@ -435,19 +524,19 @@ export function RegisterPage({ onNavigate }: AuthPageProps) {
             loading={submitting}
             rightIcon={<ArrowRight className="w-4 h-4" />}
           >
-            Create Account & Personalize
+            {isHi ? 'खाता बनाएँ और आगे बढ़ें' : 'Create Account & Personalize'}
           </Button>
         </form>
       </Card>
 
       <p className="text-center text-sm text-muted">
-        Already have an account?{' '}
+        {isHi ? 'क्या आपका पहले से खाता है? ' : 'Already have an account? '}
         <button
           type="button"
           onClick={() => onNavigate('/login')}
           className="text-sage font-medium hover:underline cursor-pointer"
         >
-          Sign in
+          {isHi ? 'साइन इन करें' : 'Sign in'}
         </button>
       </p>
     </div>
@@ -486,7 +575,7 @@ export function ForgotPasswordPage({ onNavigate }: AuthPageProps) {
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 sm:px-6 py-12 sm:py-16 space-y-6">
+    <div className="max-w-md mx-auto px-4 sm:px-6 pt-12 pb-24 sm:py-16 space-y-6">
       <div className="text-center space-y-2">
         <p className="font-mono text-xs text-sage tabular-nums">Account Recovery</p>
         <h1 className="font-display text-3xl font-semibold text-charcoal">
@@ -643,7 +732,7 @@ export function ResetPasswordPage({ onNavigate, initialToken }: TokenAuthPagePro
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 sm:px-6 py-12 sm:py-16 space-y-6">
+    <div className="max-w-md mx-auto px-4 sm:px-6 pt-12 pb-24 sm:py-16 space-y-6">
       <div className="text-center space-y-2">
         <p className="font-mono text-xs text-sage tabular-nums">Security Update</p>
         <h1 className="font-display text-3xl font-semibold text-charcoal">
@@ -846,7 +935,7 @@ export function VerifyEmailPage({ onNavigate, initialToken }: TokenAuthPageProps
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 sm:px-6 py-12 sm:py-16 space-y-6">
+    <div className="max-w-md mx-auto px-4 sm:px-6 pt-12 pb-24 sm:py-16 space-y-6">
       <div className="text-center space-y-2">
         <p className="font-mono text-xs text-sage tabular-nums">Email Verification</p>
         <h1 className="font-display text-3xl font-semibold text-charcoal">

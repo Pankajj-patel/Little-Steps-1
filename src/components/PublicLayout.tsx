@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import { Button } from '../design-system';
 import type { PublicRoute } from '../lib/router';
+import { BrandLogo } from './BrandLogo';
 
 interface PublicLayoutProps {
   currentRoute: PublicRoute;
@@ -41,9 +42,10 @@ export function PublicLayout({ currentRoute, onNavigate, children }: PublicLayou
           <a
             href="/"
             onClick={(e) => handleLinkClick(e, '/')}
-            className="font-display text-xl font-bold tracking-tight text-charcoal whitespace-nowrap shrink-0 min-h-[44px] inline-flex items-center"
+            className="font-display text-xl font-bold tracking-tight text-charcoal whitespace-nowrap shrink-0 min-h-[44px] inline-flex items-center gap-2.5"
           >
-            LittleSteps
+            <BrandLogo size="md" />
+            <span>LittleSteps</span>
           </a>
 
           {/* Zone 2: 5 clean single-line navigation links */}
@@ -161,9 +163,10 @@ export function PublicLayout({ currentRoute, onNavigate, children }: PublicLayou
               <a
                 href="/"
                 onClick={(e) => handleLinkClick(e, '/')}
-                className="font-display text-xl font-bold text-charcoal inline-block"
+                className="font-display text-xl font-bold text-charcoal inline-flex items-center gap-2.5"
               >
-                LittleSteps
+                <BrandLogo size="md" />
+                <span>LittleSteps</span>
               </a>
               <p className="text-sm text-muted leading-relaxed max-w-xs">
                 Calm, age-appropriate daily activities helping mothers and caregivers support babies from birth to 24 months.

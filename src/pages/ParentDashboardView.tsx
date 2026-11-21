@@ -25,6 +25,7 @@ import {
   User,
   X,
 } from 'lucide-react';
+import { BrandLogo } from '../components/BrandLogo';
 import { EditorialImage } from '../components/EditorialImage';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -41,17 +42,28 @@ import {
 } from '../design-system';
 import { api } from '../lib/api';
 import type { NavigateTarget } from '../lib/router';
-import { formatDateReadable } from '../shared/i18n';
+import {
+  localizeActivitySummary,
+  localizeParentingTip,
+  localizePlanTitleAndFocus,
+} from '../shared/hindiContent';
+import {
+  formatDateReadable,
+  getTimeOfDayGreeting,
+  localizeAgeGroupLabel,
+  localizeDomainName,
+  localizePrepLevel,
+} from '../shared/i18n';
 import type {
   ActivityDetail,
   ChildProfile,
   CompletionStatus,
   JourneyActivityItem,
+  LocaleCode,
   ParentNotificationItem,
   TodayJourneyResponse,
 } from '../shared/types';
 import {
-  formatPrepLevel,
   getJourneyStatusMeta,
   MyPlanSection,
 } from './parent/MyPlanSection';
@@ -81,13 +93,6 @@ interface ParentDashboardViewProps {
   onLogout: () => Promise<void>;
 }
 
-function getTimeOfDayGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
 const DOMAIN_ICONS: Record<string, React.ReactNode> = {
   cognitive: <Sparkles className="w-4 h-4" aria-hidden="true" />,
   language: <MessageCircle className="w-4 h-4" aria-hidden="true" />,
@@ -104,6 +109,7 @@ export function ParentDashboardView({
 }: ParentDashboardViewProps) {
   const {
     user,
+    setUser,
     locale,
     ageGroups,
     learningDomains,
@@ -114,6 +120,7 @@ export function ParentDashboardView({
 
   const [section, setSection] = useState<ParentSection>('today');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [switchingLocale, setSwitchingLocale] = useState(false);
 
   // Core data state
   const [childrenList, setChildrenList] = useState<ChildProfile[]>([]);
@@ -131,9 +138,29 @@ export function ParentDashboardView({
   const [studioActivity, setStudioActivity] = useState<ActivityDetail | null>(null);
   const [loadingStudioActivity, setLoadingStudioActivity] = useState(false);
 
+  const isHi = locale === 'hi';
   const isDemoAccount = user?.email.toLowerCase() === 'meera@littlesteps.in';
-  const greeting = getTimeOfDayGreeting();
-  const firstName = user?.fullName.split(' ')[0] || 'Mama';
+  const greeting = getTimeOfDayGreeting(locale);
+  const firstName = user?.fullName.split(' ')[0] || (isHi ? 'मम्मा' : 'Mama');
+
+  const handleQuickLocaleToggle = async (nextLocale: LocaleCode) => {
+    if (!user || nextLocale === locale || switchingLocale) return;
+    setSwitchingLocale(true);
+    setUser((prev) => (prev ? { ...prev, preferredLocale: nextLocale } : prev));
+    try {
+      const res = await api.saveOnboardingParent({
+        fullName: user.fullName,
+        email: user.email,
+        preferredLocale: nextLocale,
+        profilePhotoUrl: user.profilePhotoUrl,
+      });
+      setUser(res.user);
+    } catch {
+      // Keep local choice if transient error occurs
+    } finally {
+      setSwitchingLocale(false);
+    }
+  };
 
   const loadChildren = useCallback(async () => {
     setLoadingChildren(true);
@@ -275,10 +302,10 @@ export function ParentDashboardView({
 
   // Primary & Secondary Navigation Definitions
   const primaryNavItems: Array<{ id: ParentSection; label: string; icon: React.ReactNode }> = [
-    { id: 'today', label: 'Today', icon: <Home className="w-4 h-4" /> },
-    { id: 'my-plan', label: 'My Plan', icon: <CalendarDays className="w-4 h-4" /> },
-    { id: 'activities', label: 'Activities', icon: <LayoutGrid className="w-4 h-4" /> },
-    { id: 'progress', label: 'Progress', icon: <BarChart3 className="w-4 h-4" /> },
+    { id: 'today', label: t('nav.today'), icon: <Home className="w-4 h-4" /> },
+    { id: 'my-plan', label: t('nav.myPlan'), icon: <CalendarDays className="w-4 h-4" /> },
+    { id: 'activities', label: t('nav.activities'), icon: <LayoutGrid className="w-4 h-4" /> },
+    { id: 'progress', label: t('nav.progress'), icon: <BarChart3 className="w-4 h-4" /> },
   ];
 
   const secondaryNavItems: Array<{
@@ -287,31 +314,32 @@ export function ParentDashboardView({
     icon: React.ReactNode;
     meta?: string;
   }> = [
-    { id: 'guides', label: 'Parenting Guides', icon: <BookOpen className="w-4 h-4" /> },
+    { id: 'guides', label: t('nav.guides'), icon: <BookOpen className="w-4 h-4" /> },
     {
       id: 'notifications',
-      label: 'Notifications',
+      label: t('nav.notifications'),
       icon: <Bell className="w-4 h-4" />,
       meta: notificationCount > 0 ? String(notificationCount) : undefined,
     },
-    { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
-    { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
+    { id: 'profile', label: t('nav.profile'), icon: <User className="w-4 h-4" /> },
+    { id: 'settings', label: t('nav.settings'), icon: <Settings className="w-4 h-4" /> },
   ];
 
   const renderActivityCardForJourneyItem = (item: JourneyActivityItem) => {
-    const meta = getJourneyStatusMeta(item);
+    const meta = getJourneyStatusMeta(item, locale);
+    const localized = localizeActivitySummary(item.activity, locale);
 
     return (
       <ActivityCard
         key={item.planItemId}
-        title={item.activity.title}
-        summary={item.activity.summary}
-        domainName={item.activity.domainName}
-        ageGroupLabel={item.activity.ageGroupLabel}
-        durationMinutes={item.activity.durationMinutes}
-        prepLevelLabel={formatPrepLevel(item.activity.prepLevel)}
-        materials={item.activity.materials}
-        posterUrl={item.activity.instructionalPosterUrl}
+        title={localized.title}
+        summary={localized.summary}
+        domainName={localized.domainName}
+        ageGroupLabel={localized.ageGroupLabel}
+        durationMinutes={localized.durationMinutes}
+        prepLevelLabel={localizePrepLevel(localized.prepLevel, locale)}
+        materials={localized.materials}
+        posterUrl={localized.instructionalPosterUrl}
         statusText={meta.statusText}
         statusTone={meta.statusTone}
         statusState={meta.statusState}
@@ -352,7 +380,7 @@ export function ParentDashboardView({
       {/* ================================================================= */}
       <aside
         aria-label="Parent dashboard navigation"
-        className="hidden lg:flex lg:flex-col w-64 shrink-0 bg-surface border-r border-border sticky top-0 h-screen"
+        className="hidden lg:flex lg:flex-col w-64 shrink-0 bg-surface border-r border-border sticky top-0 h-[100dvh]"
       >
         {/* Brand */}
         <div className="px-5 h-16 border-b border-border flex items-center justify-between gap-2 shrink-0">
@@ -361,9 +389,7 @@ export function ParentDashboardView({
             onClick={() => handleSelectSection('today')}
             className="inline-flex items-center gap-2.5 text-left cursor-pointer"
           >
-            <span className="w-8 h-8 rounded-lg bg-sage-soft border border-sage-border text-sage inline-flex items-center justify-center">
-              <Sprout className="w-4 h-4" aria-hidden="true" />
-            </span>
+            <BrandLogo size="md" />
             <span className="font-display text-lg font-semibold text-charcoal tracking-tight">
               LittleSteps
             </span>
@@ -424,7 +450,7 @@ export function ParentDashboardView({
         <div className="flex-1 overflow-y-auto p-3 space-y-5">
           <div className="space-y-1">
             <p className="px-3 text-[11px] font-medium uppercase tracking-wider text-muted">
-              Daily Journey
+              {t('nav.dailyJourney')}
             </p>
             <nav aria-label="Primary navigation" className="space-y-1">
               {primaryNavItems.map((item) => {
@@ -451,7 +477,7 @@ export function ParentDashboardView({
 
           <div className="space-y-1 pt-3 border-t border-border">
             <p className="px-3 text-[11px] font-medium uppercase tracking-wider text-muted">
-              More
+              {t('nav.more')}
             </p>
             <nav aria-label="Secondary navigation" className="space-y-1">
               {secondaryNavItems.map((item) => {
@@ -510,9 +536,7 @@ export function ParentDashboardView({
               onClick={() => handleSelectSection('today')}
               className="lg:hidden inline-flex items-center gap-2 shrink-0 cursor-pointer"
             >
-              <span className="w-8 h-8 rounded-lg bg-sage-soft border border-sage-border text-sage inline-flex items-center justify-center">
-                <Sprout className="w-4 h-4" aria-hidden="true" />
-              </span>
+              <BrandLogo size="sm" />
               <span className="font-display text-base font-semibold text-charcoal">
                 LittleSteps
               </span>
@@ -531,11 +555,38 @@ export function ParentDashboardView({
             </div>
           </div>
 
-          {/* Right: Demo Indicator + Notifications + Profile + Mobile Menu */}
+          {/* Right: Language Toggle + Demo Indicator + Notifications + Profile + Mobile Menu */}
           <div className="flex items-center gap-2 shrink-0">
+            <div
+              role="group"
+              aria-label="Language switch"
+              className="inline-flex rounded-lg border border-border bg-offwhite p-0.5 text-xs"
+            >
+              <button
+                type="button"
+                disabled={switchingLocale}
+                onClick={() => void handleQuickLocaleToggle('en')}
+                className={`px-2 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                  locale === 'en' ? 'bg-sage text-white' : 'text-muted hover:text-charcoal'
+                }`}
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                disabled={switchingLocale}
+                onClick={() => void handleQuickLocaleToggle('hi')}
+                className={`px-2 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                  locale === 'hi' ? 'bg-sage text-white' : 'text-muted hover:text-charcoal'
+                }`}
+              >
+                हिन्दी
+              </button>
+            </div>
+
             {isDemoAccount && (
               <Badge tone="lavender" className="hidden sm:inline-flex">
-                Demo account
+                {isHi ? 'डेमो खाता' : 'Demo account'}
               </Badge>
             )}
 
@@ -684,7 +735,7 @@ export function ParentDashboardView({
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-28 lg:pb-12 space-y-6 focus:outline-none"
+          className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-36 lg:pb-24 space-y-6 focus:outline-none"
         >
           {/* Friendly Retryable Error Message */}
           {error && (
@@ -757,389 +808,436 @@ export function ParentDashboardView({
           {/* =============================================================== */}
           {/* PRIMARY TAB 1: TODAY (MAIN PARENT DASHBOARD — 7 SECTIONS)       */}
           {/* =============================================================== */}
-          {!studioActivity && !loadingStudioActivity && journey && section === 'today' && (
-            <div className="space-y-8">
-              {/* SECTION 1: WELCOME AREA */}
-              <section className="flex flex-wrap items-end justify-between gap-4">
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone="sage">
-                      {journey.child.displayName} · {journey.child.ageInMonths}{' '}
-                      {journey.child.ageInMonths === 1 ? 'month' : 'months'} ({journey.child.ageGroupLabel})
-                    </Badge>
-                    {isDemoAccount && (
-                      <Badge tone="lavender">Sample demo data</Badge>
-                    )}
-                  </div>
-                  <h1 className="font-display text-3xl sm:text-4xl font-semibold text-charcoal tracking-tight">
-                    {greeting}, {firstName}!
-                  </h1>
-                  <p className="text-sm sm:text-base text-muted">
-                    Ready for today’s little moments?
-                  </p>
-                </div>
+          {!studioActivity && !loadingStudioActivity && journey && section === 'today' && (() => {
+            const localizedChildAge = localizeAgeGroupLabel(
+              journey.child.ageGroupSlug,
+              journey.child.ageGroupLabel,
+              locale
+            );
+            const localizedDay = localizePlanTitleAndFocus(
+              journey.selectedDay.title,
+              journey.selectedDay.focusNote,
+              journey.selectedDay.dayNumber,
+              locale
+            );
+            const localizedLastActivity = journey.lastActivity
+              ? localizeActivitySummary(journey.lastActivity.activity, locale)
+              : null;
+            const localizedTip = localizeParentingTip(journey.parentingTip, locale);
 
-                {childrenList.length > 1 && (
-                  <select
-                    aria-label="Switch active child"
-                    value={selectedChildId ?? ''}
-                    onChange={(e) => {
-                      setSelectedChildId(e.target.value);
-                      setSelectedDay(1);
-                    }}
-                    className="min-h-[44px] rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm text-charcoal"
-                  >
-                    {childrenList.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.displayName} ({c.ageGroupLabel})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </section>
-
-              {/* SECTION 2: TODAY'S LEARNING JOURNEY (PROMINENT HERO CARD) */}
-              <section aria-label="Today's learning journey">
-                <Card
-                  tone="sage"
-                  padding="lg"
-                  className="flex flex-col md:flex-row md:items-center justify-between gap-6"
-                >
-                  <div className="space-y-3 flex-1">
-                    <div className="space-y-1">
-                      <p className="font-mono text-xs text-sage tabular-nums">
-                        {journey.selectedDay.title}
-                      </p>
-                      <h2 className="font-display text-2xl font-semibold text-charcoal">
-                        Today’s Learning Journey
-                      </h2>
-                      <p className="text-sm text-muted leading-relaxed max-w-xl">
-                        {journey.selectedDay.focusNote}
-                      </p>
+            return (
+              <div className="space-y-8">
+                {/* SECTION 1: WELCOME AREA */}
+                <section className="flex flex-wrap items-end justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone="sage">
+                        {journey.child.displayName} · {journey.child.ageInMonths}{' '}
+                        {journey.child.ageInMonths === 1
+                          ? t('common.month')
+                          : t('common.months')}{' '}
+                        ({localizedChildAge})
+                      </Badge>
+                      {isDemoAccount && (
+                        <Badge tone="lavender">
+                          {isHi ? 'उदाहरण डेमो डेटा' : 'Sample demo data'}
+                        </Badge>
+                      )}
                     </div>
-
-                    <div className="max-w-md pt-1">
-                      <ProgressIndicator
-                        value={journey.todaySummary.completedTodayCount}
-                        max={Math.max(1, journey.todaySummary.totalTodayCount)}
-                        label={`${journey.todaySummary.completedTodayCount} of ${journey.todaySummary.totalTodayCount} activities completed`}
-                        sublabel={`${journey.todaySummary.completionPct}%`}
-                        tone="sage"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row md:flex-col items-stretch sm:items-center md:items-end gap-4 shrink-0">
-                    <ProgressIndicator
-                      variant="ring"
-                      value={journey.todaySummary.completionPct}
-                      max={100}
-                      label="Daily completion"
-                      sublabel={`${journey.todaySummary.completedTodayCount}/${journey.todaySummary.totalTodayCount} done`}
-                      tone="sage"
-                    />
-                    <Button
-                      variant="primary"
-                      size="lg"
-                      rightIcon={<ArrowRight className="w-4 h-4" />}
-                      onClick={handleContinueTodaysJourney}
-                    >
-                      Continue Today’s Journey
-                    </Button>
-                  </div>
-                </Card>
-              </section>
-
-              {/* SECTION 3: TODAY'S ACTIVITIES */}
-              <section className="space-y-4">
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                  <div className="space-y-0.5">
-                    <h2 className="font-display text-2xl font-semibold text-charcoal">
-                      Today’s Activities
-                    </h2>
-                    <p className="text-sm text-muted">
-                      Short, calm play moments matched to {journey.child.displayName}’s{' '}
-                      {journey.child.ageGroupLabel} stage.
+                    <h1 className="font-display text-3xl sm:text-4xl font-semibold text-charcoal tracking-tight">
+                      {greeting}, {firstName}!
+                    </h1>
+                    <p className="text-sm sm:text-base text-muted">
+                      {t('dashboard.readySubtitle')}
                     </p>
                   </div>
-                  <Button
-                    variant="subtle"
-                    size="sm"
-                    rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                    onClick={() => handleSelectSection('my-plan')}
+
+                  {childrenList.length > 1 && (
+                    <select
+                      aria-label="Switch active child"
+                      value={selectedChildId ?? ''}
+                      onChange={(e) => {
+                        setSelectedChildId(e.target.value);
+                        setSelectedDay(1);
+                      }}
+                      className="min-h-[44px] rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm text-charcoal"
+                    >
+                      {childrenList.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.displayName} ({localizeAgeGroupLabel(c.ageGroupSlug, c.ageGroupLabel, locale)})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </section>
+
+                {/* SECTION 2: TODAY'S LEARNING JOURNEY (PROMINENT HERO CARD) */}
+                <section aria-label="Today's learning journey">
+                  <Card
+                    tone="sage"
+                    padding="lg"
+                    className="flex flex-col md:flex-row md:items-center justify-between gap-6"
                   >
-                    View Full Plan
-                  </Button>
-                </div>
-
-                {journey.items.length === 0 ? (
-                  <EmptyState
-                    title={`No activities scheduled yet for ${journey.child.ageGroupLabel}`}
-                    description="Browse our full activity library to pick a gentle activity for today."
-                    actionLabel="Browse Activities"
-                    onAction={() => handleSelectSection('activities')}
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {journey.items.map(renderActivityCardForJourneyItem)}
-                  </div>
-                )}
-              </section>
-
-              {/* SECTIONS 4 & 6 SIDE-BY-SIDE ON DESKTOP: WEEKLY PROGRESS + CONTINUE LEARNING */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* SECTION 4: WEEKLY PROGRESS */}
-                <section className="lg:col-span-7">
-                  <Card padding="lg" className="h-full flex flex-col justify-between space-y-5">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <div>
-                        <h2 className="font-display text-xl font-semibold text-charcoal">
-                          Weekly Progress
+                    <div className="space-y-3 flex-1">
+                      <div className="space-y-1">
+                        <p className="font-mono text-xs text-sage tabular-nums">
+                          {localizedDay.title}
+                        </p>
+                        <h2 className="font-display text-2xl font-semibold text-charcoal">
+                          {t('dashboard.todaysJourney')}
                         </h2>
-                        <p className="text-xs text-muted">
-                          Completed activities across the last 7 days
+                        <p className="text-sm text-muted leading-relaxed max-w-xl">
+                          {localizedDay.focusNote}
                         </p>
                       </div>
-                      <span className="font-mono text-xs tabular-nums text-sage font-medium">
-                        {journey.weeklyProgress.reduce((s, d) => s + d.completedCount, 0)} completed
-                      </span>
+
+                      <div className="max-w-md pt-1">
+                        <ProgressIndicator
+                          value={journey.todaySummary.completedTodayCount}
+                          max={Math.max(1, journey.todaySummary.totalTodayCount)}
+                          label={
+                            isHi
+                              ? `${journey.todaySummary.totalTodayCount} में से ${journey.todaySummary.completedTodayCount} गतिविधियाँ पूर्ण`
+                              : `${journey.todaySummary.completedTodayCount} of ${journey.todaySummary.totalTodayCount} activities completed`
+                          }
+                          sublabel={`${journey.todaySummary.completionPct}%`}
+                          tone="sage"
+                        />
+                      </div>
                     </div>
 
-                    {(() => {
-                      const maxVal = Math.max(
-                        3,
-                        ...journey.weeklyProgress.map((d) => d.completedCount)
-                      );
-                      const weeklyTotal = journey.weeklyProgress.reduce(
-                        (s, d) => s + d.completedCount,
-                        0
-                      );
-                      return (
-                        <div className="space-y-3">
-                          <div
-                            className="grid grid-cols-7 gap-2 items-end h-36 pt-2"
-                            role="img"
-                            aria-label={`Weekly progress chart: ${weeklyTotal} completed activities in the last 7 days`}
-                          >
-                            {journey.weeklyProgress.map((day) => {
-                              const heightPct =
-                                day.completedCount > 0
-                                  ? Math.max(20, Math.round((day.completedCount / maxVal) * 100))
-                                  : 8;
-                              return (
-                                <div
-                                  key={day.date}
-                                  className="flex flex-col items-center justify-end gap-1.5 h-full"
-                                >
-                                  <span className="font-mono text-[11px] tabular-nums text-muted">
-                                    {day.completedCount}
-                                  </span>
-                                  <div className="w-full max-w-[34px] h-20 rounded-lg bg-cream p-1 flex items-end">
-                                    <div
-                                      className={`w-full rounded-md transition-all duration-300 ${
-                                        day.completedCount > 0
-                                          ? day.isToday
-                                            ? 'bg-sage'
-                                            : 'bg-sage/75'
-                                          : 'bg-border-strong/50'
-                                      }`}
-                                      style={{ height: `${heightPct}%` }}
-                                    />
-                                  </div>
-                                  <span
-                                    className={`text-xs ${
-                                      day.isToday ? 'font-semibold text-sage' : 'text-muted'
-                                    }`}
-                                  >
-                                    {day.dayLabel}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                          {weeklyTotal === 0 && (
-                            <p className="text-xs text-muted bg-cream/70 rounded-lg px-3 py-2">
-                              Complete your first activity today to start seeing your calm weekly
-                              rhythm take shape.
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    <div className="flex flex-col sm:flex-row md:flex-col items-stretch sm:items-center md:items-end gap-4 shrink-0">
+                      <ProgressIndicator
+                        variant="ring"
+                        value={journey.todaySummary.completionPct}
+                        max={100}
+                        label={t('dashboard.dailyCompletion')}
+                        sublabel={
+                          isHi
+                            ? `${journey.todaySummary.completedTodayCount}/${journey.todaySummary.totalTodayCount} पूर्ण`
+                            : `${journey.todaySummary.completedTodayCount}/${journey.todaySummary.totalTodayCount} done`
+                        }
+                        tone="sage"
+                      />
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        rightIcon={<ArrowRight className="w-4 h-4" />}
+                        onClick={handleContinueTodaysJourney}
+                      >
+                        {t('dashboard.continueJourney')}
+                      </Button>
+                    </div>
                   </Card>
                 </section>
 
-                {/* SECTION 6: CONTINUE LEARNING */}
-                <section className="lg:col-span-5">
-                  <Card padding="lg" className="h-full flex flex-col justify-between space-y-4">
-                    <div className="space-y-1">
-                      <p className="font-mono text-xs text-sage">Continue Learning</p>
-                      <h2 className="font-display text-xl font-semibold text-charcoal">
-                        Pick up where you left off
+                {/* SECTION 3: TODAY'S ACTIVITIES */}
+                <section className="space-y-4">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <h2 className="font-display text-2xl font-semibold text-charcoal">
+                        {t('dashboard.todaysActivities')}
                       </h2>
+                      <p className="text-sm text-muted">
+                        {isHi
+                          ? `${journey.child.displayName} के ${localizedChildAge} चरण के लिए चुने गए शांत और सरल खेल।`
+                          : `Short, calm play moments matched to ${journey.child.displayName}’s ${localizedChildAge} stage.`}
+                      </p>
                     </div>
+                    <Button
+                      variant="subtle"
+                      size="sm"
+                      rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                      onClick={() => handleSelectSection('my-plan')}
+                    >
+                      {t('dashboard.viewFullPlan')}
+                    </Button>
+                  </div>
 
-                    {journey.lastActivity ? (
-                      <div className="space-y-4 flex-1 flex flex-col justify-between">
-                        <div className="rounded-xl border border-border bg-offwhite overflow-hidden flex items-center gap-3.5 p-3">
-                          <div className="w-20 h-20 rounded-lg overflow-hidden shrink-0">
-                            <EditorialImage
-                              src={journey.lastActivity.activity.instructionalPosterUrl}
-                              alt={journey.lastActivity.activity.title}
-                              aspectClassName="w-full h-full"
+                  {journey.items.length === 0 ? (
+                    <EmptyState
+                      title={
+                        isHi
+                          ? `${localizedChildAge} के लिए अभी कोई गतिविधि निर्धारित नहीं है`
+                          : `No activities scheduled yet for ${localizedChildAge}`
+                      }
+                      description={
+                        isHi
+                          ? 'आज के लिए कोई शांत गतिविधि चुनने के लिए हमारी पूरी लाइब्रेरी देखें।'
+                          : 'Browse our full activity library to pick a gentle activity for today.'
+                      }
+                      actionLabel={isHi ? 'गतिविधियाँ देखें' : 'Browse Activities'}
+                      onAction={() => handleSelectSection('activities')}
+                    />
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {journey.items.map(renderActivityCardForJourneyItem)}
+                    </div>
+                  )}
+                </section>
+
+                {/* SECTIONS 4 & 6 SIDE-BY-SIDE ON DESKTOP: WEEKLY PROGRESS + CONTINUE LEARNING */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* SECTION 4: WEEKLY PROGRESS */}
+                  <section className="lg:col-span-7">
+                    <Card padding="lg" className="h-full flex flex-col justify-between space-y-5">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <div>
+                          <h2 className="font-display text-xl font-semibold text-charcoal">
+                            {t('dashboard.weeklyProgress')}
+                          </h2>
+                          <p className="text-xs text-muted">
+                            {t('dashboard.weeklyProgressDesc')}
+                          </p>
+                        </div>
+                        <span className="font-mono text-xs tabular-nums text-sage font-medium">
+                          {journey.weeklyProgress.reduce((s, d) => s + d.completedCount, 0)}{' '}
+                          {isHi ? 'पूर्ण' : 'completed'}
+                        </span>
+                      </div>
+
+                      {(() => {
+                        const maxVal = Math.max(
+                          3,
+                          ...journey.weeklyProgress.map((d) => d.completedCount)
+                        );
+                        const weeklyTotal = journey.weeklyProgress.reduce(
+                          (s, d) => s + d.completedCount,
+                          0
+                        );
+                        return (
+                          <div className="space-y-3">
+                            <div
+                              className="grid grid-cols-7 gap-2 items-end h-36 pt-2"
+                              role="img"
+                              aria-label={`Weekly progress chart: ${weeklyTotal} completed activities in the last 7 days`}
+                            >
+                              {journey.weeklyProgress.map((day) => {
+                                const heightPct =
+                                  day.completedCount > 0
+                                    ? Math.max(20, Math.round((day.completedCount / maxVal) * 100))
+                                    : 8;
+                                return (
+                                  <div
+                                    key={day.date}
+                                    className="flex flex-col items-center justify-end gap-1.5 h-full"
+                                  >
+                                    <span className="font-mono text-[11px] tabular-nums text-muted">
+                                      {day.completedCount}
+                                    </span>
+                                    <div className="w-full max-w-[34px] h-20 rounded-lg bg-cream p-1 flex items-end">
+                                      <div
+                                        className={`w-full rounded-md transition-all duration-300 ${
+                                          day.completedCount > 0
+                                            ? day.isToday
+                                              ? 'bg-sage'
+                                              : 'bg-sage/75'
+                                            : 'bg-border-strong/50'
+                                        }`}
+                                        style={{ height: `${heightPct}%` }}
+                                      />
+                                    </div>
+                                    <span
+                                      className={`text-xs ${
+                                        day.isToday ? 'font-semibold text-sage' : 'text-muted'
+                                      }`}
+                                    >
+                                      {day.dayLabel}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {weeklyTotal === 0 && (
+                              <p className="text-xs text-muted bg-cream/70 rounded-lg px-3 py-2">
+                                {isHi
+                                  ? 'अपनी शांत साप्ताहिक लय देखने के लिए आज पहली गतिविधि पूरी करें।'
+                                  : 'Complete your first activity today to start seeing your calm weekly rhythm take shape.'}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </Card>
+                  </section>
+
+                  {/* SECTION 6: CONTINUE LEARNING */}
+                  <section className="lg:col-span-5">
+                    <Card padding="lg" className="h-full flex flex-col justify-between space-y-4">
+                      <div className="space-y-1">
+                        <p className="font-mono text-xs text-sage">
+                          {t('dashboard.continueLearning')}
+                        </p>
+                        <h2 className="font-display text-xl font-semibold text-charcoal">
+                          {t('dashboard.pickUpWhereLeft')}
+                        </h2>
+                      </div>
+
+                      {journey.lastActivity && localizedLastActivity ? (
+                        <div className="space-y-4 flex-1 flex flex-col justify-between">
+                          <div className="rounded-xl border border-border bg-offwhite overflow-hidden flex items-center gap-3.5 p-3">
+                            <div className="w-20 h-20 rounded-lg overflow-hidden shrink-0">
+                              <EditorialImage
+                                src={localizedLastActivity.instructionalPosterUrl}
+                                alt={localizedLastActivity.title}
+                                aspectClassName="w-full h-full"
+                              />
+                            </div>
+                            <div className="min-w-0 space-y-1">
+                              <p className="text-[11px] text-muted truncate">
+                                {localizedLastActivity.domainName} ·{' '}
+                                <span className="font-mono tabular-nums">
+                                  {localizedLastActivity.durationMinutes} {t('common.min')}
+                                </span>
+                              </p>
+                              <p className="font-display text-base font-semibold text-charcoal leading-snug line-clamp-2">
+                                {localizedLastActivity.title}
+                              </p>
+                              <p className="text-[11px] text-sage font-medium">
+                                {journey.lastActivity.status === 'started'
+                                  ? t('status.inProgress')
+                                  : journey.lastActivity.status === 'reviewed'
+                                    ? t('status.reviewed')
+                                    : isHi
+                                      ? 'हाल ही में पूर्ण'
+                                      : 'Recently completed'}{' '}
+                                · {formatDateReadable(journey.lastActivity.updatedAt, locale)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <Button
+                            variant="primary"
+                            fullWidth
+                            leftIcon={<PlayCircle className="w-4 h-4" />}
+                            onClick={() => void openActivityInStudio(journey.lastActivity!.activity)}
+                          >
+                            {journey.lastActivity.status === 'started'
+                              ? t('dashboard.resumeActivity')
+                              : t('dashboard.revisitActivity')}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-border bg-offwhite p-4 space-y-3 flex-1 flex flex-col justify-between">
+                          <p className="text-sm text-muted leading-relaxed">
+                            {isHi
+                              ? 'जैसे ही आप कोई गतिविधि खोलती या शुरू करती हैं, वह यहाँ दिखाई देगी ताकि आप आसानी से वहीं से आगे बढ़ सकें।'
+                              : 'Once you open or start an activity, it will appear right here so you can jump back in effortlessly—even with one hand free.'}
+                          </p>
+                          <Button
+                            variant="secondary"
+                            fullWidth
+                            rightIcon={<ArrowRight className="w-4 h-4" />}
+                            onClick={handleContinueTodaysJourney}
+                          >
+                            {t('dashboard.startFirstActivity')}
+                          </Button>
+                        </div>
+                      )}
+                    </Card>
+                  </section>
+                </div>
+
+                {/* SECTION 5: DEVELOPMENT AREAS (SIX CARDS WITH INDIVIDUAL PROGRESS) */}
+                <section className="space-y-4">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <h2 className="font-display text-2xl font-semibold text-charcoal">
+                        {t('dashboard.developmentAreas')}
+                      </h2>
+                      <p className="text-sm text-muted">
+                        {t('dashboard.developmentAreasDesc')}
+                      </p>
+                    </div>
+                    <Button
+                      variant="subtle"
+                      size="sm"
+                      rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                      onClick={() => handleSelectSection('progress')}
+                    >
+                      {t('dashboard.detailedProgress')}
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {journey.domainProgress.map((stat) => {
+                      const pct = Math.min(
+                        100,
+                        Math.round((stat.completedCount / Math.max(1, stat.availableCount)) * 100)
+                      );
+                      return (
+                        <button
+                          key={stat.domainId}
+                          type="button"
+                          onClick={() => {
+                            setActivitiesDomainFilter(stat.domainId);
+                            handleSelectSection('activities');
+                          }}
+                          className="text-left rounded-xl border border-border bg-surface p-5 space-y-3 hover:border-sage/70 transition-colors cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="w-9 h-9 rounded-lg bg-sage-soft text-sage inline-flex items-center justify-center shrink-0">
+                              {DOMAIN_ICONS[stat.domainSlug] ?? <Sparkles className="w-4 h-4" />}
+                            </span>
+                            <span className="font-mono text-xs tabular-nums text-muted">
+                              {stat.completedCount}/{stat.availableCount} · {pct}%
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="font-display text-base font-semibold text-charcoal">
+                              {localizeDomainName(stat.domainSlug, stat.domainName, locale)}
+                            </p>
+                            <ProgressIndicator
+                              value={Math.min(stat.completedCount, stat.availableCount)}
+                              max={stat.availableCount}
+                              tone="sage"
+                              size="sm"
                             />
                           </div>
-                          <div className="min-w-0 space-y-1">
-                            <p className="text-[11px] text-muted truncate">
-                              {journey.lastActivity.activity.domainName} ·{' '}
-                              <span className="font-mono tabular-nums">
-                                {journey.lastActivity.activity.durationMinutes} min
-                              </span>
-                            </p>
-                            <p className="font-display text-base font-semibold text-charcoal leading-snug line-clamp-2">
-                              {journey.lastActivity.activity.title}
-                            </p>
-                            <p className="text-[11px] text-sage font-medium">
-                              {journey.lastActivity.status === 'started'
-                                ? 'In progress'
-                                : journey.lastActivity.status === 'reviewed'
-                                  ? 'Reviewed'
-                                  : 'Recently completed'}{' '}
-                              · {formatDateReadable(journey.lastActivity.updatedAt, locale)}
-                            </p>
-                          </div>
-                        </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
 
-                        <Button
-                          variant="primary"
-                          fullWidth
-                          leftIcon={<PlayCircle className="w-4 h-4" />}
-                          onClick={() => void openActivityInStudio(journey.lastActivity!.activity)}
-                        >
-                          {journey.lastActivity.status === 'started'
-                            ? 'Resume Activity'
-                            : 'Revisit Activity'}
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="rounded-xl border border-border bg-offwhite p-4 space-y-3 flex-1 flex flex-col justify-between">
-                        <p className="text-sm text-muted leading-relaxed">
-                          Once you open or start an activity, it will appear right here so you can
-                          jump back in effortlessly—even with one hand free.
+                {/* SECTION 7: PARENTING TIP */}
+                <section aria-label="Today's parenting tip">
+                  <Card
+                    tone="cream"
+                    padding="lg"
+                    className="flex flex-col sm:flex-row sm:items-start justify-between gap-4"
+                  >
+                    <div className="flex items-start gap-3.5">
+                      <span className="w-10 h-10 rounded-xl bg-surface border border-border text-sage inline-flex items-center justify-center shrink-0">
+                        <Lightbulb className="w-5 h-5" aria-hidden="true" />
+                      </span>
+                      <div className="space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-mono text-xs text-sage">{t('dashboard.todaysTip')}</p>
+                          <Badge tone="neutral">{localizedTip.focusArea}</Badge>
+                        </div>
+                        <h2 className="font-display text-lg font-semibold text-charcoal">
+                          {localizedTip.title}
+                        </h2>
+                        <p className="text-sm text-muted leading-relaxed max-w-2xl">
+                          {localizedTip.body}
                         </p>
-                        <Button
-                          variant="secondary"
-                          fullWidth
-                          rightIcon={<ArrowRight className="w-4 h-4" />}
-                          onClick={handleContinueTodaysJourney}
-                        >
-                          Start First Activity
-                        </Button>
                       </div>
-                    )}
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="shrink-0 self-start"
+                      onClick={() => handleSelectSection('guides')}
+                    >
+                      {t('dashboard.moreGuides')}
+                    </Button>
                   </Card>
                 </section>
               </div>
-
-              {/* SECTION 5: DEVELOPMENT AREAS (SIX CARDS WITH INDIVIDUAL PROGRESS) */}
-              <section className="space-y-4">
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                  <div className="space-y-0.5">
-                    <h2 className="font-display text-2xl font-semibold text-charcoal">
-                      Development Areas
-                    </h2>
-                    <p className="text-sm text-muted">
-                      Balanced growth across all six early-childhood areas.
-                    </p>
-                  </div>
-                  <Button
-                    variant="subtle"
-                    size="sm"
-                    rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                    onClick={() => handleSelectSection('progress')}
-                  >
-                    Detailed Progress
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {journey.domainProgress.map((stat) => {
-                    const pct = Math.min(
-                      100,
-                      Math.round((stat.completedCount / Math.max(1, stat.availableCount)) * 100)
-                    );
-                    return (
-                      <button
-                        key={stat.domainId}
-                        type="button"
-                        onClick={() => {
-                          setActivitiesDomainFilter(stat.domainId);
-                          handleSelectSection('activities');
-                        }}
-                        className="text-left rounded-xl border border-border bg-surface p-5 space-y-3 hover:border-sage/70 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="w-9 h-9 rounded-lg bg-sage-soft text-sage inline-flex items-center justify-center shrink-0">
-                            {DOMAIN_ICONS[stat.domainSlug] ?? <Sparkles className="w-4 h-4" />}
-                          </span>
-                          <span className="font-mono text-xs tabular-nums text-muted">
-                            {stat.completedCount}/{stat.availableCount} · {pct}%
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="font-display text-base font-semibold text-charcoal">
-                            {stat.domainName}
-                          </p>
-                          <ProgressIndicator
-                            value={Math.min(stat.completedCount, stat.availableCount)}
-                            max={stat.availableCount}
-                            tone="sage"
-                            size="sm"
-                          />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              {/* SECTION 7: PARENTING TIP */}
-              <section aria-label="Today's parenting tip">
-                <Card
-                  tone="cream"
-                  padding="lg"
-                  className="flex flex-col sm:flex-row sm:items-start justify-between gap-4"
-                >
-                  <div className="flex items-start gap-3.5">
-                    <span className="w-10 h-10 rounded-xl bg-surface border border-border text-sage inline-flex items-center justify-center shrink-0">
-                      <Lightbulb className="w-5 h-5" aria-hidden="true" />
-                    </span>
-                    <div className="space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-mono text-xs text-sage">Today’s Parenting Tip</p>
-                        <Badge tone="neutral">{journey.parentingTip.focusArea}</Badge>
-                      </div>
-                      <h2 className="font-display text-lg font-semibold text-charcoal">
-                        {journey.parentingTip.title}
-                      </h2>
-                      <p className="text-sm text-muted leading-relaxed max-w-2xl">
-                        {journey.parentingTip.body}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="shrink-0 self-start"
-                    onClick={() => handleSelectSection('guides')}
-                  >
-                    More Guides
-                  </Button>
-                </Card>
-              </section>
-            </div>
-          )}
+            );
+          })()}
 
           {/* =============================================================== */}
           {/* PRIMARY TAB 2: MY PLAN (STRUCTURED DAILY LEARNING JOURNEY)      */}

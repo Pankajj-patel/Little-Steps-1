@@ -81,7 +81,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-charcoal/45 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-charcoal/45 backdrop-blur-[2px] overflow-y-auto"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -93,9 +93,9 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
-        className={`w-full ${SIZE_CLASSES[size]} rounded-t-2xl sm:rounded-2xl border border-border bg-surface overflow-hidden max-h-[90vh] flex flex-col focus:outline-none`}
+        className={`w-full ${SIZE_CLASSES[size]} rounded-t-2xl sm:rounded-2xl border border-border bg-surface overflow-hidden max-h-[85dvh] flex flex-col my-auto focus:outline-none`}
       >
-        <div className="px-5 sm:px-6 py-4 border-b border-border flex items-start justify-between gap-4">
+        <div className="px-5 sm:px-6 py-4 border-b border-border flex items-start justify-between gap-4 shrink-0">
           <div className="space-y-1">
             <h2 id={titleId} className="font-display text-xl font-semibold text-charcoal">
               {title}
@@ -116,10 +116,12 @@ export function Modal({
           </button>
         </div>
 
-        <div className="px-5 sm:px-6 py-5 overflow-y-auto flex-1">{children}</div>
+        <div className="px-5 sm:px-6 py-5 overflow-y-auto flex-1 min-h-0 overscroll-contain">
+          {children}
+        </div>
 
         {footer && (
-          <div className="px-5 sm:px-6 py-4 border-t border-border bg-offwhite flex flex-wrap items-center justify-end gap-3">
+          <div className="px-5 sm:px-6 py-4 border-t border-border bg-offwhite flex flex-wrap items-center justify-end gap-3 shrink-0 pb-safe">
             {footer}
           </div>
         )}

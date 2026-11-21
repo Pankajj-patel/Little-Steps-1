@@ -17,14 +17,14 @@ import {
 } from '../../components/VideoCaptureUploader';
 import { Badge, Button, Card, ConfirmDialog } from '../../design-system';
 import { api } from '../../lib/api';
-import { formatDateReadable } from '../../shared/i18n';
+import { localizeActivityDetail } from '../../shared/hindiContent';
+import { formatDateReadable, localizePrepLevel, translate } from '../../shared/i18n';
 import type {
   ActivityDetail,
   CompletionStatus,
   LocaleCode,
   VideoSubmissionSummary,
 } from '../../shared/types';
-import { formatPrepLevel } from './MyPlanSection';
 
 interface ParentActivityStudioProps {
   childId: string;
@@ -60,6 +60,9 @@ export function ParentActivityStudio({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deletingVideo, setDeletingVideo] = useState(false);
 
+  const isHi = locale === 'hi';
+  const displayActivity = localizeActivityDetail(activity, locale);
+
   const isCompleted =
     completionStatus === 'completed' ||
     completionStatus === 'submitted_for_review' ||
@@ -79,11 +82,19 @@ export function ParentActivityStudio({
         status: 'completed',
         caregiverNotes: reflectionNote,
       });
-      setStatusMessage(`Saved to ${childName}’s daily journal.`);
+      setStatusMessage(
+        isHi
+          ? `${childName} की दैनिक डायरी में सहेजा गया।`
+          : `Saved to ${childName}’s daily journal.`
+      );
       await onProgressUpdated();
     } catch (err) {
       setErrorMessage(
-        err instanceof Error ? err.message : 'Unable to save activity progress right now.'
+        err instanceof Error
+          ? err.message
+          : isHi
+            ? 'अभी प्रगति सहेजी नहीं जा सकी। कृपया पुनः प्रयास करें।'
+            : 'Unable to save activity progress right now.'
       );
     } finally {
       setSavingCompletion(false);
@@ -93,9 +104,11 @@ export function ParentActivityStudio({
   const handleVideoSubmitted = async (submission: VideoSubmissionSummary) => {
     setUploaderMode(null);
     setStatusMessage(
-      submission.storageMode === 'production_object_storage'
-        ? 'Practice clip submitted to private storage and queued for caregiver coaching.'
-        : 'Practice clip submitted in Demo Storage Mode and queued for caregiver coaching.'
+      isHi
+        ? 'अभ्यास वीडियो निजी स्टोरेज में भेज दिया गया है और देखभालकर्ता मार्गदर्शन के लिए कतार में है।'
+        : submission.storageMode === 'production_object_storage'
+          ? 'Practice clip submitted to private storage and queued for caregiver coaching.'
+          : 'Practice clip submitted in Demo Storage Mode and queued for caregiver coaching.'
     );
     await onProgressUpdated();
   };
@@ -108,18 +121,26 @@ export function ParentActivityStudio({
       await api.deleteSubmissionVideo(latestSubmission.id);
       setConfirmDeleteOpen(false);
       setStatusMessage(
-        'Video permanently removed from storage. Written coaching notes remain preserved.'
+        isHi
+          ? 'वीडियो स्टोरेज से स्थायी रूप से हटा दिया गया है। आपके लिखित सुझाव सुरक्षित रहेंगे।'
+          : 'Video permanently removed from storage. Written coaching notes remain preserved.'
       );
       await onProgressUpdated();
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Could not delete video.');
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : isHi
+            ? 'वीडियो हटाया नहीं जा सका।'
+            : 'Could not delete video.'
+      );
     } finally {
       setDeletingVideo(false);
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button
           variant="subtle"
@@ -127,7 +148,7 @@ export function ParentActivityStudio({
           leftIcon={<ArrowLeft className="w-4 h-4" />}
           onClick={onBack}
         >
-          Back to Dashboard
+          {translate(locale, 'studio.backToDashboard')}
         </Button>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -138,7 +159,7 @@ export function ParentActivityStudio({
           )}
           {isCompleted && !latestStateMeta && (
             <Badge tone="sage" icon={<CheckCircle2 className="w-3.5 h-3.5" />}>
-              Completed
+              {translate(locale, 'status.completed')}
             </Badge>
           )}
         </div>
@@ -147,36 +168,39 @@ export function ParentActivityStudio({
       {/* Activity Title & Calm Metadata */}
       <div className="space-y-2">
         <p className="text-xs text-muted">
-          {activity.domainName} <span aria-hidden="true">·</span> {activity.ageGroupLabel}{' '}
+          {displayActivity.domainName} <span aria-hidden="true">·</span>{' '}
+          {displayActivity.ageGroupLabel} <span aria-hidden="true">·</span>{' '}
+          <span className="font-mono tabular-nums">
+            {displayActivity.durationMinutes} {translate(locale, 'common.min')}
+          </span>{' '}
+          <span aria-hidden="true">·</span> {localizePrepLevel(displayActivity.prepLevel, locale)}{' '}
           <span aria-hidden="true">·</span>{' '}
-          <span className="font-mono tabular-nums">{activity.durationMinutes} min</span>{' '}
-          <span aria-hidden="true">·</span> {formatPrepLevel(activity.prepLevel)}{' '}
-          <span aria-hidden="true">·</span>{' '}
-          <span className="font-mono tabular-nums">v{activity.version}</span>
+          <span className="font-mono tabular-nums">v{displayActivity.version}</span>
         </p>
         <h1 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal">
-          {activity.title}
+          {displayActivity.title}
         </h1>
         <p className="text-sm sm:text-base text-muted leading-relaxed max-w-2xl">
-          {activity.summary}
+          {displayActivity.summary}
         </p>
       </div>
 
       {/* Interactive Step-Paced Instructional Guide */}
       <InstructionalGuidePlayer
-        posterUrl={activity.instructionalPosterUrl}
-        activityTitle={activity.title}
-        steps={activity.steps}
+        posterUrl={displayActivity.instructionalPosterUrl}
+        activityTitle={displayActivity.title}
+        steps={displayActivity.steps}
+        locale={locale}
       />
 
       {/* Everyday Items & Calm Safety Reminder */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Card className="space-y-3">
           <h2 className="font-display text-lg font-semibold text-charcoal">
-            Everyday Items Needed
+            {translate(locale, 'studio.everydayItems')}
           </h2>
           <ul className="space-y-2 text-sm text-muted">
-            {activity.materials.map((mat, i) => (
+            {displayActivity.materials.map((mat, i) => (
               <li key={i} className="flex items-start gap-2.5">
                 <span className="font-mono text-xs text-sage mt-0.5 tabular-nums">
                   {String(i + 1).padStart(2, '0')}
@@ -191,24 +215,27 @@ export function ParentActivityStudio({
           <div className="flex items-center gap-2 text-peach-ink">
             <ShieldAlert className="w-4 h-4 shrink-0" aria-hidden="true" />
             <h2 className="font-display text-lg font-semibold text-charcoal">
-              Calm Safety Reminder
+              {translate(locale, 'studio.safetyReminder')}
             </h2>
           </div>
-          <p className="text-sm text-charcoal/90 leading-relaxed">{activity.safetyNotes}</p>
+          <p className="text-sm text-charcoal/90 leading-relaxed">{displayActivity.safetyNotes}</p>
         </Card>
       </div>
 
       {/* Step-by-Step Caregiver Instructions */}
       <Card padding="lg" className="space-y-5">
         <div className="flex items-center justify-between gap-4 border-b border-border pb-3">
-          <h2 className="font-display text-xl font-semibold text-charcoal">Step-by-Step Guide</h2>
+          <h2 className="font-display text-xl font-semibold text-charcoal">
+            {translate(locale, 'studio.stepByStep')}
+          </h2>
           <span className="text-xs text-muted font-mono tabular-nums">
-            {Object.values(checkedSteps).filter(Boolean).length} / {activity.steps.length} steps tried
+            {Object.values(checkedSteps).filter(Boolean).length} / {displayActivity.steps.length}{' '}
+            {isHi ? 'चरण पूरे हुए' : 'steps tried'}
           </span>
         </div>
 
         <ol className="divide-y divide-border">
-          {activity.steps.map((step) => {
+          {displayActivity.steps.map((step) => {
             const checked = Boolean(checkedSteps[step.id]);
             return (
               <li key={step.id} className="py-4 first:pt-1 last:pb-1">
@@ -232,7 +259,7 @@ export function ParentActivityStudio({
                     <p className="text-sm text-muted leading-relaxed">{step.instructionText}</p>
                     {step.caregiverTip && (
                       <p className="text-xs text-sage pt-0.5">
-                        Gentle cue: {step.caregiverTip}
+                        {translate(locale, 'studio.gentleCue')}: {step.caregiverTip}
                       </p>
                     )}
                   </div>
@@ -265,11 +292,12 @@ export function ParentActivityStudio({
           <Card padding="lg" className="space-y-5">
             <div className="space-y-1">
               <h2 className="font-display text-xl font-semibold text-charcoal">
-                Finish Activity or Share a Video for Caregiver Feedback
+                {translate(locale, 'studio.finishTitle')}
               </h2>
               <p className="text-sm text-muted leading-relaxed">
-                Save your practice to {childName}’s daily journal, or record/upload a short clip so
-                a reviewer can share warm feedback on how clearly the activity steps were demonstrated.
+                {isHi
+                  ? `अपना अभ्यास ${childName} की दैनिक डायरी में सहेजें, या एक छोटा निजी वीडियो रिकॉर्ड/अपलोड करें ताकि समीक्षक गतिविधि के चरणों पर प्यार भरा मार्गदर्शन दे सकें।`
+                  : `Save your practice to ${childName}’s daily journal, or record/upload a short clip so a reviewer can share warm feedback on how clearly the activity steps were demonstrated.`}
               </p>
             </div>
 
@@ -278,14 +306,14 @@ export function ParentActivityStudio({
                 htmlFor="studio-reflection-note"
                 className="block text-xs font-medium text-charcoal"
               >
-                Short reflection note (Optional)
+                {translate(locale, 'studio.reflectionLabel')}
               </label>
               <textarea
                 id="studio-reflection-note"
                 rows={2}
                 value={reflectionNote}
                 onChange={(e) => setReflectionNote(e.target.value)}
-                placeholder="How did the pace feel for you and your baby today?"
+                placeholder={translate(locale, 'studio.reflectionPlaceholder')}
                 className="w-full rounded-lg border border-border-strong bg-surface px-3.5 py-2.5 text-sm text-charcoal focus:border-sage"
               />
             </div>
@@ -297,7 +325,9 @@ export function ParentActivityStudio({
                 leftIcon={<Check className="w-4 h-4" />}
                 onClick={() => void handleMarkCompleted()}
               >
-                {isCompleted ? 'Update Journal Note' : 'Mark Activity Completed'}
+                {isCompleted
+                  ? translate(locale, 'studio.updateNote')
+                  : translate(locale, 'studio.markCompleted')}
               </Button>
 
               <Button
@@ -305,7 +335,7 @@ export function ParentActivityStudio({
                 leftIcon={<Camera className="w-4 h-4 text-sage" />}
                 onClick={() => setUploaderMode('record')}
               >
-                Record Activity
+                {translate(locale, 'studio.recordActivity')}
               </Button>
 
               <Button
@@ -313,7 +343,7 @@ export function ParentActivityStudio({
                 leftIcon={<Upload className="w-4 h-4 text-sage" />}
                 onClick={() => setUploaderMode('upload')}
               >
-                Upload Video
+                {translate(locale, 'studio.uploadVideo')}
               </Button>
             </div>
           </Card>
@@ -322,7 +352,7 @@ export function ParentActivityStudio({
             childId={childId}
             childName={childName}
             activityId={activity.id}
-            activityTitle={activity.title}
+            activityTitle={displayActivity.title}
             activityVersion={activity.version}
             initialMode={uploaderMode}
             existingSubmission={latestSubmission}

@@ -405,7 +405,7 @@ export function ReviewerWorkbenchView() {
       savingAction === null;
 
     return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24 space-y-6">
         {/* Top Navigation & Privacy Metadata */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Button
@@ -1025,7 +1025,7 @@ export function ReviewerWorkbenchView() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24 space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
         <div className="space-y-1">

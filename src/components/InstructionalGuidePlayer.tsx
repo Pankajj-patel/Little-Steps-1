@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from 'lucide-react';
-import type { ActivityStep } from '../shared/types';
+import { translate } from '../shared/i18n';
+import type { ActivityStep, LocaleCode } from '../shared/types';
 import { EditorialImage } from './EditorialImage';
 
 interface InstructionalGuidePlayerProps {
   posterUrl: string;
   activityTitle: string;
   steps: ActivityStep[];
+  locale?: LocaleCode;
 }
 
 /**
@@ -17,6 +19,7 @@ export function InstructionalGuidePlayer({
   posterUrl,
   activityTitle,
   steps,
+  locale = 'en',
 }: InstructionalGuidePlayerProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -42,6 +45,11 @@ export function InstructionalGuidePlayer({
     setIsPlaying(true);
   };
 
+  const stepHeaderLabel =
+    locale === 'hi'
+      ? `${translate('hi', 'player.guidedDemo')} · चरण ${activeIndex + 1} / ${steps.length}`
+      : `${translate('en', 'player.guidedDemo')} · Step ${activeIndex + 1} of ${steps.length}`;
+
   return (
     <div className="rounded-xl border border-stone bg-linen overflow-hidden">
       <div className="relative aspect-[16/9] bg-oat overflow-hidden">
@@ -53,11 +61,9 @@ export function InstructionalGuidePlayer({
         {/* Measured scrim ensuring >= 4.5:1 text contrast over editorial photography */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10 flex flex-col justify-between p-5 sm:p-6">
           <div className="flex items-center justify-between gap-4 text-xs text-white/90">
+            <span className="font-mono tabular-nums">{stepHeaderLabel}</span>
             <span className="font-mono tabular-nums">
-              Guided Demonstration · Step {activeIndex + 1} of {steps.length}
-            </span>
-            <span className="font-mono tabular-nums">
-              {isPlaying ? 'Playing pace guide' : 'Paused'}
+              {isPlaying ? translate(locale, 'player.playing') : translate(locale, 'player.paused')}
             </span>
           </div>
 
@@ -85,12 +91,12 @@ export function InstructionalGuidePlayer({
             {isPlaying ? (
               <>
                 <Pause className="w-4 h-4" aria-hidden="true" />
-                Pause Guide
+                {translate(locale, 'player.pauseGuide')}
               </>
             ) : (
               <>
                 <Play className="w-4 h-4" aria-hidden="true" />
-                Play Step Guide
+                {translate(locale, 'player.playGuide')}
               </>
             )}
           </button>

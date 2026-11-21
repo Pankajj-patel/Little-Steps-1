@@ -38,6 +38,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
+import { BrandLogo } from '../components/BrandLogo';
 import { SecureVideoPlayer } from '../components/SecureVideoPlayer';
 import { useAuth } from '../context/AuthContext';
 import { Badge, type BadgeTone } from '../design-system/Badge';
@@ -892,7 +893,7 @@ export function AdminActivityManager({
         title={editingActivityId ? 'Edit Curriculum Activity' : 'Create New Activity'}
         size="lg"
       >
-        <form onSubmit={handleSaveActivity} className="space-y-6 max-h-[75vh] overflow-y-auto px-1 pr-2">
+        <form onSubmit={handleSaveActivity} className="space-y-6 pb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1 md:col-span-2">
               <label className="text-xs font-semibold text-charcoal uppercase tracking-wider">
@@ -1354,7 +1355,7 @@ export function AdminActivityManager({
         title={`Version History · ${activeVersionActivityTitle}`}
         size="md"
       >
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1 pr-1">
+        <div className="space-y-4 pb-4">
           <p className="text-xs text-muted leading-relaxed">
             LittleSteps automatically captures an immutable snapshot on every change. Past video
             submissions stay permanently evaluated against the exact version in effect when submitted.
@@ -1456,7 +1457,7 @@ export function AdminActivityManager({
         size="lg"
       >
         {previewDetail && (
-          <div className="space-y-5 max-h-[75vh] overflow-y-auto px-1 pr-2">
+          <div className="space-y-5 pb-4">
             <div className="flex items-center justify-between pb-3 border-b border-cream-accent/60">
               <div className="flex items-center gap-2">
                 <Badge tone={previewDetail.status === 'published' ? 'sage' : 'peach'}>
@@ -3465,8 +3466,8 @@ export function AdminConsoleView({
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col md:flex-row bg-offwhite">
       <div className="md:hidden p-4 border-b border-cream-accent/60 bg-white flex items-center justify-between sticky top-0 z-20">
-        <div className="flex items-center gap-2">
-          <Shield className="w-5 h-5 text-sage" />
+        <div className="flex items-center gap-2.5">
+          <BrandLogo size="sm" />
           <span className="font-serif font-bold text-charcoal">LittleSteps Admin</span>
         </div>
         <Button
@@ -3485,9 +3486,7 @@ export function AdminConsoleView({
         } md:block w-full md:w-64 bg-white border-r border-cream-accent/70 p-4 md:min-h-[calc(100vh-4rem)] shrink-0 z-10`}
       >
         <div className="hidden md:flex items-center gap-2.5 px-3 py-3 mb-4 border-b border-cream-accent/50">
-          <div className="w-8 h-8 rounded-xl bg-sage/10 text-sage flex items-center justify-center font-serif font-bold">
-            LS
-          </div>
+          <BrandLogo size="md" />
           <div>
             <h1 className="text-sm font-serif font-bold text-charcoal leading-tight">Admin Console</h1>
             <p className="text-[11px] text-muted">Platform Management</p>
@@ -3528,7 +3527,7 @@ export function AdminConsoleView({
         </div>
       </aside>
 
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full overflow-x-hidden">
+      <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 pb-24 max-w-7xl mx-auto w-full">
         {currentTab === 'dashboard' && (
           <div className="space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-cream/30 p-6 rounded-2xl border border-cream-accent/60">

@@ -24,7 +24,18 @@ import {
   Tabs,
   type BadgeTone,
 } from '../../design-system';
-import { formatDateReadable } from '../../shared/i18n';
+import {
+  localizeActivitySummary,
+  localizeActivityTitleById,
+  localizePlanTitleAndFocus,
+} from '../../shared/hindiContent';
+import {
+  formatDateReadable,
+  localizeAgeGroupLabel,
+  localizeDomainName,
+  localizePrepLevel,
+  translate,
+} from '../../shared/i18n';
 import type {
   ActivityDetail,
   ActivityPrepLevel,
@@ -34,70 +45,71 @@ import type {
   TodayJourneyResponse,
 } from '../../shared/types';
 
-export function formatPrepLevel(prepLevel?: ActivityPrepLevel): string {
-  switch (prepLevel) {
-    case 'no_prep':
-      return 'No prep';
-    case 'guided_prep':
-      return 'Guided setup';
-    case 'quick_setup':
-    default:
-      return '2-min setup';
-  }
+export function formatPrepLevel(
+  prepLevel?: ActivityPrepLevel,
+  locale: LocaleCode = 'en'
+): string {
+  return localizePrepLevel(prepLevel, locale);
 }
 
-export function getJourneyStatusMeta(item: JourneyActivityItem): {
+export function getJourneyStatusMeta(
+  item: JourneyActivityItem,
+  locale: LocaleCode = 'en'
+): {
   statusState: JourneyDisplayStatus;
   statusText: string;
   statusTone: BadgeTone;
   actionLabel: string;
 } {
   const statusState = item.displayStatus;
+  const isHi = locale === 'hi';
   switch (statusState) {
     case 'reviewed': {
       const review = item.latestSubmission?.review;
       const score = review?.instructionMatchScorePct;
       const statusText =
         review && !review.isAssessable
-          ? 'Reviewed · Not Assessable'
+          ? isHi
+            ? 'समीक्षित · मूल्यांकन संभव नहीं'
+            : 'Reviewed · Not Assessable'
           : score !== undefined && score !== null
-            ? `Reviewed · ${score}%`
-            : 'Reviewed';
+            ? `${translate(locale, 'status.reviewed')} · ${score}%`
+            : translate(locale, 'status.reviewed');
       return {
         statusState,
         statusText,
         statusTone: review && !review.isAssessable ? 'peach' : 'sage',
-        actionLabel: 'Read Feedback',
+        actionLabel: translate(locale, 'action.readFeedback'),
       };
     }
     case 'submitted_for_review':
       return {
         statusState,
-        statusText: 'Submitted for review',
+        statusText: translate(locale, 'status.submittedForReview'),
         statusTone: 'lavender',
-        actionLabel: 'View Submission',
+        actionLabel: translate(locale, 'action.viewSubmission'),
       };
     case 'completed':
       return {
         statusState,
-        statusText: 'Completed',
+        statusText: translate(locale, 'status.completed'),
         statusTone: 'sage',
-        actionLabel: 'View Activity',
+        actionLabel: translate(locale, 'action.viewActivity'),
       };
     case 'in_progress':
       return {
         statusState,
-        statusText: 'In progress',
+        statusText: translate(locale, 'status.inProgress'),
         statusTone: 'peach',
-        actionLabel: 'Resume Activity',
+        actionLabel: translate(locale, 'action.resumeActivity'),
       };
     case 'not_started':
     default:
       return {
         statusState: 'not_started',
-        statusText: 'Not started',
+        statusText: translate(locale, 'status.notStarted'),
         statusTone: 'neutral',
-        actionLabel: 'Start Activity',
+        actionLabel: translate(locale, 'action.startActivity'),
       };
   }
 }
@@ -133,35 +145,57 @@ export function MyPlanSection({
     }).format(dt);
   }, [journey.learningWeek.todayDateIso, locale]);
 
+  const isHi = locale === 'hi';
+  const localizedChildAge = localizeAgeGroupLabel(
+    journey.child.ageGroupSlug,
+    journey.child.ageGroupLabel,
+    locale
+  );
+  const localizedSelectedDay = localizePlanTitleAndFocus(
+    journey.selectedDay.title,
+    journey.selectedDay.focusNote,
+    journey.selectedDay.dayNumber,
+    locale
+  );
+
   // Unique domains covered across today's selected plan + upcoming days
   const stageDomainsCovered = useMemo(() => {
     const names = new Set<string>();
-    journey.items.forEach((i) => names.add(i.activity.domainName));
+    journey.items.forEach((i) =>
+      names.add(localizeDomainName(i.activity.domainSlug, i.activity.domainName, locale))
+    );
     journey.upcomingDays.forEach((d) =>
-      d.activities.forEach((a) => names.add(a.domainName))
+      d.activities.forEach((a) => names.add(localizeDomainName(a.domainSlug, a.domainName, locale)))
     );
     return Array.from(names);
-  }, [journey.items, journey.upcomingDays]);
+  }, [journey.items, journey.upcomingDays, locale]);
 
   const todaysDomains = useMemo(
-    () => Array.from(new Set(journey.items.map((i) => i.activity.domainName))),
-    [journey.items]
+    () =>
+      Array.from(
+        new Set(
+          journey.items.map((i) =>
+            localizeDomainName(i.activity.domainSlug, i.activity.domainName, locale)
+          )
+        )
+      ),
+    [journey.items, locale]
   );
 
   const tabs = [
     {
       id: 'today',
-      label: "Today's Activities",
+      label: isHi ? 'आज की गतिविधियाँ' : "Today's Activities",
       count: journey.items.length,
     },
     {
       id: 'upcoming',
-      label: 'Upcoming Days',
+      label: isHi ? 'आने वाले दिन' : 'Upcoming Days',
       count: journey.upcomingDays.length,
     },
     {
       id: 'completed',
-      label: 'Completed History',
+      label: isHi ? 'पूर्ण इतिहास' : 'Completed History',
       count: journey.completedHistory.length,
     },
   ];
@@ -177,16 +211,21 @@ export function MyPlanSection({
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="sage">
                 {journey.child.displayName} · {journey.child.ageInMonths}{' '}
-                {journey.child.ageInMonths === 1 ? 'month' : 'months'} ({journey.child.ageGroupLabel})
+                {journey.child.ageInMonths === 1
+                  ? translate(locale, 'common.month')
+                  : translate(locale, 'common.months')}{' '}
+                ({localizedChildAge})
               </Badge>
               <Badge tone="neutral">
-                Week {journey.learningWeek.weekNumber} of {journey.learningWeek.totalStageWeeks}
+                {isHi
+                  ? `सप्ताह ${journey.learningWeek.weekNumber} / ${journey.learningWeek.totalStageWeeks}`
+                  : `Week ${journey.learningWeek.weekNumber} of ${journey.learningWeek.totalStageWeeks}`}
               </Badge>
             </div>
 
             <div className="space-y-1">
               <h1 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal tracking-tight">
-                My Plan
+                {translate(locale, 'nav.myPlan')}
               </h1>
               <p className="text-sm text-muted flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="inline-flex items-center gap-1.5 text-charcoal font-medium">
@@ -195,7 +234,7 @@ export function MyPlanSection({
                 </span>
                 <span aria-hidden="true">·</span>
                 <span>
-                  Stage: {journey.learningWeek.stageLabel}
+                  {isHi ? `चरण: ${localizedChildAge}` : `Stage: ${journey.learningWeek.stageLabel}`}
                 </span>
               </p>
             </div>
@@ -207,8 +246,12 @@ export function MyPlanSection({
               variant="ring"
               value={journey.todaySummary.completionPct}
               max={100}
-              label="Today's progress"
-              sublabel={`${journey.todaySummary.completedTodayCount} of ${journey.todaySummary.totalTodayCount} done`}
+              label={isHi ? 'आज की प्रगति' : "Today's progress"}
+              sublabel={
+                isHi
+                  ? `${journey.todaySummary.totalTodayCount} में से ${journey.todaySummary.completedTodayCount} पूर्ण`
+                  : `${journey.todaySummary.completedTodayCount} of ${journey.todaySummary.totalTodayCount} done`
+              }
               tone="sage"
             />
           </div>
@@ -219,7 +262,7 @@ export function MyPlanSection({
           <ProgressIndicator
             value={journey.todaySummary.completedTodayCount}
             max={Math.max(1, journey.todaySummary.totalTodayCount)}
-            label={`Daily completion · ${journey.selectedDay.title}`}
+            label={`${translate(locale, 'dashboard.dailyCompletion')} · ${localizedSelectedDay.title}`}
             sublabel={`${journey.todaySummary.completedTodayCount}/${journey.todaySummary.totalTodayCount} (${journey.todaySummary.completionPct}%)`}
             tone="sage"
           />
@@ -314,42 +357,55 @@ export function MyPlanSection({
           <Card tone="cream" className="space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-display text-lg font-semibold text-charcoal">
-                {journey.selectedDay.title}
+                {localizedSelectedDay.title}
               </h2>
               <span className="text-xs text-muted">
-                Focus areas today:{' '}
+                {isHi ? 'आज के मुख्य क्षेत्र: ' : 'Focus areas today: '}
                 <strong className="font-medium text-charcoal">
-                  {todaysDomains.length > 0 ? todaysDomains.join(' · ') : 'Age-matched play'}
+                  {todaysDomains.length > 0
+                    ? todaysDomains.join(' · ')
+                    : isHi
+                      ? 'उम्र के अनुसार खेल'
+                      : 'Age-matched play'}
                 </strong>
               </span>
             </div>
             <p className="text-sm text-muted leading-relaxed">
-              {journey.selectedDay.focusNote}
+              {localizedSelectedDay.focusNote}
             </p>
           </Card>
 
           {journey.items.length === 0 ? (
             <EmptyState
-              title={`No activities scheduled for Day ${selectedDay} yet`}
-              description={`Browse the full ${journey.child.ageGroupLabel} activity library to pick a calm activity for today.`}
-              actionLabel="Browse Activity Library"
+              title={
+                isHi
+                  ? `दिन ${selectedDay} के लिए अभी कोई गतिविधि नहीं है`
+                  : `No activities scheduled for Day ${selectedDay} yet`
+              }
+              description={
+                isHi
+                  ? `${localizedChildAge} की गतिविधि लाइब्रेरी से आज के लिए कोई शांत गतिविधि चुनें।`
+                  : `Browse the full ${localizedChildAge} activity library to pick a calm activity for today.`
+              }
+              actionLabel={isHi ? 'गतिविधि लाइब्रेरी देखें' : 'Browse Activity Library'}
               onAction={onOpenLibrary}
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {journey.items.map((item) => {
-                const meta = getJourneyStatusMeta(item);
+                const meta = getJourneyStatusMeta(item, locale);
+                const localized = localizeActivitySummary(item.activity, locale);
                 return (
                   <ActivityCard
                     key={item.planItemId}
-                    title={item.activity.title}
-                    summary={item.activity.summary}
-                    domainName={item.activity.domainName}
-                    ageGroupLabel={item.activity.ageGroupLabel}
-                    durationMinutes={item.activity.durationMinutes}
-                    prepLevelLabel={formatPrepLevel(item.activity.prepLevel)}
-                    materials={item.activity.materials}
-                    posterUrl={item.activity.instructionalPosterUrl}
+                    title={localized.title}
+                    summary={localized.summary}
+                    domainName={localized.domainName}
+                    ageGroupLabel={localized.ageGroupLabel}
+                    durationMinutes={localized.durationMinutes}
+                    prepLevelLabel={formatPrepLevel(localized.prepLevel, locale)}
+                    materials={localized.materials}
+                    posterUrl={localized.instructionalPosterUrl}
                     statusText={meta.statusText}
                     statusTone={meta.statusTone}
                     statusState={meta.statusState}
@@ -413,20 +469,28 @@ export function MyPlanSection({
           ) : (
             journey.upcomingDays.map((upDay) => {
               const dateLabel = formatDateReadable(`${upDay.scheduledDate}T12:00:00`, locale);
+              const localizedUpDay = localizePlanTitleAndFocus(
+                upDay.title,
+                upDay.focusNote,
+                upDay.dayNumber,
+                locale
+              );
               return (
                 <Card key={upDay.dayNumber} padding="lg" className="space-y-4">
                   <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3.5">
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone="neutral">Day {upDay.dayNumber}</Badge>
+                        <Badge tone="neutral">
+                          {translate(locale, 'common.day')} {upDay.dayNumber}
+                        </Badge>
                         <span className="font-mono text-xs text-muted tabular-nums">
-                          Planned for {dateLabel}
+                          {isHi ? `${dateLabel} के लिए नियोजित` : `Planned for ${dateLabel}`}
                         </span>
                       </div>
                       <h2 className="font-display text-xl font-semibold text-charcoal">
-                        {upDay.title}
+                        {localizedUpDay.title}
                       </h2>
-                      <p className="text-sm text-muted">{upDay.focusNote}</p>
+                      <p className="text-sm text-muted">{localizedUpDay.focusNote}</p>
                     </div>
 
                     <Button
@@ -437,52 +501,60 @@ export function MyPlanSection({
                         setActiveTab('today');
                       }}
                     >
-                      Switch to Day {upDay.dayNumber}
+                      {isHi ? `दिन ${upDay.dayNumber} पर जाएँ` : `Switch to Day ${upDay.dayNumber}`}
                     </Button>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {upDay.activities.map((act) => (
-                      <div
-                        key={`${upDay.dayNumber}-${act.id}`}
-                        className="rounded-xl border border-border bg-offwhite p-4 flex flex-col sm:flex-row gap-4 justify-between"
-                      >
-                        <div className="flex items-start gap-3.5 min-w-0">
-                          <div className="w-20 h-20 rounded-lg overflow-hidden shrink-0">
-                            <EditorialImage
-                              src={act.instructionalPosterUrl}
-                              alt={act.title}
-                              aspectClassName="w-full h-full"
-                            />
-                          </div>
-                          <div className="space-y-1 min-w-0">
-                            <p className="text-xs text-muted">
-                              {act.domainName} ·{' '}
-                              <span className="font-mono tabular-nums">{act.durationMinutes} min</span>{' '}
-                              · {formatPrepLevel(act.prepLevel)}
-                            </p>
-                            <h3 className="font-display text-base font-semibold text-charcoal leading-snug">
-                              {act.title}
-                            </h3>
-                            {act.materials.length > 0 && (
-                              <p className="text-xs text-muted line-clamp-1">
-                                Materials: <span className="text-charcoal">{act.materials.slice(0, 3).join(', ')}</span>
+                    {upDay.activities.map((rawAct) => {
+                      const act = localizeActivitySummary(rawAct, locale);
+                      return (
+                        <div
+                          key={`${upDay.dayNumber}-${act.id}`}
+                          className="rounded-xl border border-border bg-offwhite p-4 flex flex-col sm:flex-row gap-4 justify-between"
+                        >
+                          <div className="flex items-start gap-3.5 min-w-0">
+                            <div className="w-20 h-20 rounded-lg overflow-hidden shrink-0">
+                              <EditorialImage
+                                src={act.instructionalPosterUrl}
+                                alt={act.title}
+                                aspectClassName="w-full h-full"
+                              />
+                            </div>
+                            <div className="space-y-1 min-w-0">
+                              <p className="text-xs text-muted">
+                                {act.domainName} ·{' '}
+                                <span className="font-mono tabular-nums">
+                                  {act.durationMinutes} {translate(locale, 'common.min')}
+                                </span>{' '}
+                                · {formatPrepLevel(act.prepLevel, locale)}
                               </p>
-                            )}
+                              <h3 className="font-display text-base font-semibold text-charcoal leading-snug">
+                                {act.title}
+                              </h3>
+                              {act.materials.length > 0 && (
+                                <p className="text-xs text-muted line-clamp-1">
+                                  {isHi ? 'सामग्री: ' : 'Materials: '}
+                                  <span className="text-charcoal">
+                                    {act.materials.slice(0, 3).join(', ')}
+                                  </span>
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex sm:flex-col items-center sm:items-end justify-end shrink-0">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => onOpenActivity(act.id)}
+                            >
+                              {isHi ? 'गतिविधि देखें' : 'Preview Activity'}
+                            </Button>
                           </div>
                         </div>
-
-                        <div className="flex sm:flex-col items-center sm:items-end justify-end shrink-0">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => onOpenActivity(act.id)}
-                          >
-                            Preview Activity
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </Card>
               );
@@ -541,15 +613,17 @@ export function MyPlanSection({
                       </div>
 
                       <h3 className="font-display text-lg font-semibold text-charcoal leading-snug">
-                        {record.activityTitle}
+                        {localizeActivityTitleById(record.activityId, record.activityTitle, locale)}
                       </h3>
 
                       <p className="text-xs text-muted flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span>{record.domainName}</span>
+                        <span>{localizeDomainName(record.domainName, record.domainName, locale)}</span>
                         <span aria-hidden="true">·</span>
-                        <span className="font-mono tabular-nums">{record.durationMinutes} min</span>
+                        <span className="font-mono tabular-nums">
+                          {record.durationMinutes} {translate(locale, 'common.min')}
+                        </span>
                         <span aria-hidden="true">·</span>
-                        <span>{formatPrepLevel(record.prepLevel)}</span>
+                        <span>{formatPrepLevel(record.prepLevel, locale)}</span>
                         <span aria-hidden="true">·</span>
                         <span className="inline-flex items-center gap-1">
                           <Clock className="w-3 h-3" aria-hidden="true" />

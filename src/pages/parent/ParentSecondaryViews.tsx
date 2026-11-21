@@ -32,7 +32,13 @@ import {
 } from '../../design-system';
 import { api } from '../../lib/api';
 import type { NavigateTarget } from '../../lib/router';
-import { formatDateReadable } from '../../shared/i18n';
+import { localizeActivitySummary, PARENTING_GUIDES_HI } from '../../shared/hindiContent';
+import {
+  formatDateReadable,
+  localizeAgeGroupLabel,
+  localizeDomainName,
+  translate,
+} from '../../shared/i18n';
 import type {
   ActivitySummary,
   AgeGroup,
@@ -65,6 +71,8 @@ export function ActivitiesLibrarySection({
   completedActivityIds,
   onOpenActivity,
 }: ActivitiesLibrarySectionProps) {
+  const { locale } = useAuth();
+  const isHi = locale === 'hi';
   const [selectedAgeSlug, setSelectedAgeSlug] = useState(initialAgeGroupSlug);
   const [selectedDomainId, setSelectedDomainId] = useState(initialDomainId);
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
@@ -90,7 +98,13 @@ export function ActivitiesLibrarySection({
       );
       setActivities(list);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load activities right now.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : isHi
+            ? 'अभी गतिविधियाँ लोड नहीं हो सकीं।'
+            : 'Unable to load activities right now.'
+      );
     } finally {
       setLoading(false);
     }
@@ -104,24 +118,29 @@ export function ActivitiesLibrarySection({
   }, [selectedAgeSlug, selectedDomainId, ageGroups.length]);
 
   const domainOptions = [
-    { value: 'all', label: 'All six development areas' },
-    ...learningDomains.map((d) => ({ value: d.id, label: d.name })),
+    { value: 'all', label: isHi ? 'सभी छह विकास क्षेत्र' : 'All six development areas' },
+    ...learningDomains.map((d) => ({
+      value: d.id,
+      label: localizeDomainName(d.slug, d.name, locale),
+    })),
   ];
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
         <h2 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal">
-          Activity Library
+          {isHi ? 'गतिविधि लाइब्रेरी' : 'Activity Library'}
         </h2>
         <p className="text-sm text-muted">
-          Explore calm, everyday activities by age stage and development area.
+          {isHi
+            ? 'उम्र के चरण और विकास क्षेत्र के अनुसार शांत, रोज़मर्रा की गतिविधियाँ देखें।'
+            : 'Explore calm, everyday activities by age stage and development area.'}
         </p>
       </div>
 
       <Card className="space-y-4">
         <AgeGroupSelector
-          label="Choose age stage (0–24 months)"
+          label={isHi ? 'उम्र का चरण चुनें (0–24 महीने)' : 'Choose age stage (0–24 months)'}
           selectedSlug={selectedAgeSlug}
           onSelect={(slug) => setSelectedAgeSlug(slug)}
           allowAll
@@ -129,7 +148,7 @@ export function ActivitiesLibrarySection({
 
         <div className="max-w-sm">
           <Select
-            label="Filter by development area"
+            label={isHi ? 'विकास क्षेत्र के अनुसार छाँटें' : 'Filter by development area'}
             options={domainOptions}
             value={selectedDomainId}
             onChange={(e) => setSelectedDomainId(e.target.value)}
@@ -147,7 +166,7 @@ export function ActivitiesLibrarySection({
             size="sm"
             onClick={() => void loadActivities(selectedAgeSlug, selectedDomainId)}
           >
-            Try Again
+            {translate(locale, 'dashboard.tryAgain')}
           </Button>
         </Card>
       )}
@@ -159,14 +178,19 @@ export function ActivitiesLibrarySection({
         </div>
       ) : activities.length === 0 ? (
         <EmptyState
-          title="No activities in this filter yet"
-          description="Try switching to another development area or viewing all six areas for this age stage."
-          actionLabel="Show All Six Areas"
+          title={isHi ? 'इस फ़िल्टर में अभी कोई गतिविधि नहीं है' : 'No activities in this filter yet'}
+          description={
+            isHi
+              ? 'अन्य विकास क्षेत्र चुनें या इस आयु वर्ग के लिए सभी छह क्षेत्र देखें।'
+              : 'Try switching to another development area or viewing all six areas for this age stage.'
+          }
+          actionLabel={isHi ? 'सभी छह क्षेत्र दिखाएँ' : 'Show All Six Areas'}
           onAction={() => setSelectedDomainId('all')}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {activities.map((act) => {
+          {activities.map((rawAct) => {
+            const act = localizeActivitySummary(rawAct, locale);
             const done = completedActivityIds.has(act.id);
             return (
               <ActivityCard
@@ -176,14 +200,20 @@ export function ActivitiesLibrarySection({
                 domainName={act.domainName}
                 ageGroupLabel={act.ageGroupLabel}
                 durationMinutes={act.durationMinutes}
-                prepLevelLabel={formatPrepLevel(act.prepLevel)}
+                prepLevelLabel={formatPrepLevel(act.prepLevel, locale)}
                 materials={act.materials}
                 posterUrl={act.instructionalPosterUrl}
-                statusText={done ? 'Completed' : 'Not started'}
+                statusText={
+                  done ? translate(locale, 'status.completed') : translate(locale, 'status.notStarted')
+                }
                 statusTone={done ? 'sage' : 'neutral'}
                 statusState={done ? 'completed' : 'not_started'}
                 completed={done}
-                actionLabel={done ? 'View Activity' : 'Start Activity'}
+                actionLabel={
+                  done
+                    ? translate(locale, 'action.viewActivity')
+                    : translate(locale, 'action.startActivity')
+                }
                 onAction={() => onOpenActivity(act.id)}
               />
             );
@@ -253,20 +283,29 @@ const PARENTING_GUIDES = [
 ];
 
 export function ParentingGuidesSection({ childAgeLabel }: { childAgeLabel: string }) {
+  const { locale } = useAuth();
+  const isHi = locale === 'hi';
+  const guides = isHi ? PARENTING_GUIDES_HI : PARENTING_GUIDES;
+  const localizedAge = localizeAgeGroupLabel(childAgeLabel, childAgeLabel, locale);
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <Badge tone="sage">Practical Caregiver Library</Badge>
+        <Badge tone="sage">
+          {isHi ? 'व्यावहारिक देखभालकर्ता पुस्तकालय' : 'Practical Caregiver Library'}
+        </Badge>
         <h2 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal">
-          Parenting Guides
+          {translate(locale, 'nav.guides')}
         </h2>
         <p className="text-sm text-muted">
-          Short, reassuring home guides to accompany your {childAgeLabel} daily journey.
+          {isHi
+            ? `आपकी ${localizedAge} की दैनिक यात्रा के लिए संक्षिप्त और आश्वस्त करने वाले घरेलू गाइड।`
+            : `Short, reassuring home guides to accompany your ${childAgeLabel} daily journey.`}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {PARENTING_GUIDES.map((guide) => (
+        {guides.map((guide) => (
           <Card key={guide.id} padding="lg" className="space-y-4 flex flex-col justify-between">
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
@@ -751,6 +790,8 @@ export function SettingsSection({
   const [locale, setLocale] = useState<LocaleCode>(user?.preferredLocale ?? 'en');
   const [saving, setSaving] = useState(false);
 
+  const isHi = locale === 'hi';
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -762,11 +803,14 @@ export function SettingsSection({
         markComplete: true,
       });
       setUser(updated);
-      notify({ tone: 'success', title: 'Preferences saved' });
+      notify({
+        tone: 'success',
+        title: locale === 'hi' ? 'प्राथमिकताएँ सहेजी गईं' : 'Preferences saved',
+      });
     } catch (err) {
       notify({
         tone: 'error',
-        title: 'Unable to save settings',
+        title: locale === 'hi' ? 'सेटिंग्स सहेजी नहीं जा सकीं' : 'Unable to save settings',
         description: err instanceof Error ? err.message : 'Please try again.',
       });
     } finally {
@@ -778,51 +822,74 @@ export function SettingsSection({
     <div className="space-y-6">
       <div className="space-y-1">
         <h2 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal">
-          Settings
+          {translate(locale, 'nav.settings')}
         </h2>
         <p className="text-sm text-muted">
-          Personalize your daily rhythm, notifications, language, and account security.
+          {isHi
+            ? 'अपनी दैनिक लय, सूचनाएँ, भाषा और खाता सुरक्षा अपनी पसंद के अनुसार चुनें।'
+            : 'Personalize your daily rhythm, notifications, language, and account security.'}
         </p>
       </div>
 
       <Card padding="lg" className="space-y-5">
         <h3 className="font-display text-lg font-semibold text-charcoal">
-          Daily Rhythm & Language
+          {isHi ? 'दैनिक लय और भाषा' : 'Daily Rhythm & Language'}
         </h3>
         <form onSubmit={handleSaveSettings} className="space-y-4">
           <Select
-            label="Preferred daily activity time"
+            label={isHi ? 'दैनिक गतिविधि का पसंदीदा समय' : 'Preferred daily activity time'}
             value={activityTime}
             onChange={(e) => setActivityTime(e.target.value as PreferredActivityTime)}
-            options={[
-              { value: 'morning', label: 'Morning (8:00 AM – 11:30 AM)' },
-              { value: 'afternoon', label: 'Afternoon (1:00 PM – 4:30 PM)' },
-              { value: 'evening', label: 'Evening (5:00 PM – 7:30 PM)' },
-              { value: 'flexible', label: 'Flexible · Whenever baby is rested' },
-            ]}
+            options={
+              isHi
+                ? [
+                    { value: 'morning', label: 'सुबह (8:00 AM – 11:30 AM)' },
+                    { value: 'afternoon', label: 'दोपहर (1:00 PM – 4:30 PM)' },
+                    { value: 'evening', label: 'शाम (5:00 PM – 7:30 PM)' },
+                    { value: 'flexible', label: 'लचीला · जब शिशु आराम से जागा हो' },
+                  ]
+                : [
+                    { value: 'morning', label: 'Morning (8:00 AM – 11:30 AM)' },
+                    { value: 'afternoon', label: 'Afternoon (1:00 PM – 4:30 PM)' },
+                    { value: 'evening', label: 'Evening (5:00 PM – 7:30 PM)' },
+                    { value: 'flexible', label: 'Flexible · Whenever baby is rested' },
+                  ]
+            }
           />
           <Select
-            label="Notification preference"
+            label={isHi ? 'सूचना प्राथमिकता' : 'Notification preference'}
             value={notifPref}
             onChange={(e) => setNotifPref(e.target.value as NotificationPreference)}
-            options={[
-              { value: 'daily_gentle', label: 'Gentle daily reminder' },
-              { value: 'weekly_summary', label: 'Weekly summary only' },
-              { value: 'none', label: 'No reminders' },
-            ]}
+            options={
+              isHi
+                ? [
+                    { value: 'daily_gentle', label: 'दैनिक कोमल याददिहानी' },
+                    { value: 'weekly_summary', label: 'केवल साप्ताहिक सारांश' },
+                    { value: 'none', label: 'कोई याददिहानी नहीं' },
+                  ]
+                : [
+                    { value: 'daily_gentle', label: 'Gentle daily reminder' },
+                    { value: 'weekly_summary', label: 'Weekly summary only' },
+                    { value: 'none', label: 'No reminders' },
+                  ]
+            }
           />
           <Select
-            label="Preferred language"
+            label={isHi ? 'पसंदीदा भाषा' : 'Preferred language'}
             value={locale}
-            onChange={(e) => setLocale(e.target.value as LocaleCode)}
+            onChange={(e) => {
+              const next = e.target.value as LocaleCode;
+              setLocale(next);
+              setUser((prev) => (prev ? { ...prev, preferredLocale: next } : prev));
+            }}
             options={[
               { value: 'en', label: 'English' },
-              { value: 'hi', label: 'हिन्दी (Hindi · beta)' },
+              { value: 'hi', label: 'हिन्दी (Hindi)' },
             ]}
           />
           <div className="flex justify-end">
             <Button type="submit" variant="primary" loading={saving}>
-              Save Preferences
+              {isHi ? 'प्राथमिकताएँ सहेजें' : 'Save Preferences'}
             </Button>
           </div>
         </form>
