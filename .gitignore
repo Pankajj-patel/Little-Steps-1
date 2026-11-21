@@ -1,0 +1,14 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+# SQLite local database and private children's video vault
+data/
+private_media/
+*.db
+*.db-wal
+*.db-shm
