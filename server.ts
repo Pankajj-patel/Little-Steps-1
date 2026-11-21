@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { getDb } from './server/db/connection.ts';
 import { runMigrations } from './server/db/schema.ts';
 import { seedDatabaseIfEmpty } from './server/db/seed.ts';
@@ -11,16 +12,21 @@ import { createApiRouter } from './server/routes/api.ts';
 import { RetentionWorker } from './server/services/retentionWorker.ts';
 import { mediaStorage } from './server/storage/mediaStorage.ts';
 
-// Dynamic production & Cloud Run environment detection
+// Environment & Port detection:
+// - AI Studio sandbox containers (ais-dev-* / ais-pre-*) run nginx on 8080 proxying to app port 3000.
+// - Published Cloud Run containers have no local nginx and inject process.env.PORT (typically 8080).
 const distDir = path.resolve(process.cwd(), 'dist');
-const hasBuiltDist = fs.existsSync(path.join(distDir, 'index.html'));
-const isCloudRun = Boolean(process.env.K_SERVICE);
-const isProduction = process.env.NODE_ENV === 'production' || hasBuiltDist || isCloudRun;
+const kService = process.env.K_SERVICE || '';
+const isAiStudioDev = kService.startsWith('ais-dev-');
+const isAiStudioSandbox = /^ais-(dev|pre)-/.test(kService);
+const isPublishedCloudRun = Boolean(kService) && !isAiStudioSandbox;
 
-// Port selection: Cloud Run injects process.env.PORT (8080).
-// In Cloud Run or production, default to 8080 if not specified. In local development, default to 3000.
-const defaultPort = isCloudRun || isProduction ? 8080 : 3000;
-const PORT = Number(process.env.PORT || defaultPort);
+const isProduction =
+  !isAiStudioDev && (process.env.NODE_ENV === 'production' || isPublishedCloudRun || kService.startsWith('ais-pre-'));
+
+const PORT = isAiStudioSandbox
+  ? 3000
+  : Number(process.env.PORT || (isProduction ? 8080 : 3000));
 
 export function createApp() {
   // 1. Initialize SQLite database, migrations, and starter seed
@@ -67,8 +73,8 @@ async function startServer() {
   const { app, retentionWorker } = createApp();
   retentionWorker.startHourlySchedule();
 
-  // 3. Mount Vite dev middleware in development (only if dist has not been built) or static dist
-  if (!isProduction && !hasBuiltDist) {
+  // 3. Mount Vite dev middleware in development or static dist in production
+  if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: {
@@ -91,11 +97,17 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`LittleSteps server listening on http://0.0.0.0:${PORT} [mode: ${isProduction ? 'production' : 'development'}]`);
+    console.log(
+      `LittleSteps server listening on http://0.0.0.0:${PORT} [mode: ${isProduction ? 'production' : 'development'}]`
+    );
   });
 }
 
-if (process.env.NODE_ENV !== 'test') {
+const currentFilePath = fileURLToPath(import.meta.url);
+const entryFilePath = process.argv[1] ? path.resolve(process.argv[1]) : '';
+const isDirectEntry = entryFilePath === currentFilePath;
+
+if (isDirectEntry && process.env.NODE_ENV !== 'test') {
   startServer().catch((err) => {
     console.error('Failed to start LittleSteps server:', err);
     process.exit(1);

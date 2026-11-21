@@ -34,10 +34,17 @@ export class LocalPrivateMediaStorage implements MediaStorageAdapter {
     const defaultMediaDir = isCloudRun
       ? path.join('/tmp', 'private_media')
       : path.join(process.cwd(), 'private_media');
-    this.rootDir = path.resolve(
-      rootDir || process.env.PRIVATE_MEDIA_DIR || defaultMediaDir
-    );
-    fs.mkdirSync(this.rootDir, { recursive: true });
+    const preferredDir = path.resolve(rootDir || process.env.PRIVATE_MEDIA_DIR || defaultMediaDir);
+
+    try {
+      fs.mkdirSync(preferredDir, { recursive: true });
+      fs.accessSync(preferredDir, fs.constants.W_OK);
+      this.rootDir = preferredDir;
+    } catch {
+      const fallbackDir = path.join('/tmp', 'private_media');
+      fs.mkdirSync(fallbackDir, { recursive: true });
+      this.rootDir = fallbackDir;
+    }
   }
 
   private resolveSafePath(storageKey: string): string {

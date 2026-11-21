@@ -12,11 +12,21 @@ export function getDb(): Database.Database {
   const defaultDbPath = isCloudRun
     ? path.join('/tmp', 'littlesteps.db')
     : path.join(process.cwd(), 'data', 'littlesteps.db');
-  const dbPath = path.resolve(
-    process.env.SQLITE_DB_PATH || defaultDbPath
-  );
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  const db = new Database(dbPath);
+  const preferredPath = path.resolve(process.env.SQLITE_DB_PATH || defaultDbPath);
+
+  let db: Database.Database;
+  try {
+    fs.mkdirSync(path.dirname(preferredPath), { recursive: true });
+    db = new Database(preferredPath);
+  } catch (err) {
+    const fallbackPath = path.join('/tmp', 'littlesteps.db');
+    if (preferredPath === fallbackPath) {
+      throw err;
+    }
+    fs.mkdirSync(path.dirname(fallbackPath), { recursive: true });
+    db = new Database(fallbackPath);
+  }
+
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');

@@ -82,7 +82,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promis
         return true;
       };
 
-      res.end = (chunk?: any, enc?: any, cb?: any) => {
+      res.end = ((chunk?: any, enc?: any, cb?: any) => {
         if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, enc));
         if (typeof enc === 'function') enc();
         else if (typeof cb === 'function') cb();
@@ -104,7 +104,8 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promis
           headers: resHeaders,
         });
         resolve(response);
-      };
+        return res;
+      }) as typeof res.end;
 
       (app as any).handle(req, res);
 

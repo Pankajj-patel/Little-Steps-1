@@ -1,6 +1,0 @@
-{
-  "summary":  "Comprehensive Step 0 architectural blueprint and implementation plan for LittleSteps covering workspace inspection, modular Express + SQLite architecture, 8 age groups and 6 learning domains, normalized relational database schema, Parent/Reviewer/Admin RBAC and user journeys, Warm Calm Montessori Editorial design system, child video privacy and 30-day retention controls, and a 5-milestone phased delivery roadmap.",
-  "updatedAt":  "2026-11-20T15:43:39.787910670Z",
-  "requestFeedback":  true,
-  "userFacing":  true
-}
