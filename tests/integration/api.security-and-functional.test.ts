@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test } from '../bun-test-shim';
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';

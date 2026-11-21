@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test } from '../bun-test-shim';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';

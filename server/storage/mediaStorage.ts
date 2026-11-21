@@ -30,8 +30,12 @@ export class LocalPrivateMediaStorage implements MediaStorageAdapter {
   private readonly rootDir: string;
 
   constructor(rootDir?: string) {
+    const isCloudRun = Boolean(process.env.K_SERVICE);
+    const defaultMediaDir = isCloudRun
+      ? path.join('/tmp', 'private_media')
+      : path.join(process.cwd(), 'private_media');
     this.rootDir = path.resolve(
-      rootDir || process.env.PRIVATE_MEDIA_DIR || path.join(process.cwd(), 'private_media')
+      rootDir || process.env.PRIVATE_MEDIA_DIR || defaultMediaDir
     );
     fs.mkdirSync(this.rootDir, { recursive: true });
   }

@@ -8,8 +8,12 @@ export function getDb(): Database.Database {
   if (dbInstance) {
     return dbInstance;
   }
+  const isCloudRun = Boolean(process.env.K_SERVICE);
+  const defaultDbPath = isCloudRun
+    ? path.join('/tmp', 'littlesteps.db')
+    : path.join(process.cwd(), 'data', 'littlesteps.db');
   const dbPath = path.resolve(
-    process.env.SQLITE_DB_PATH || path.join(process.cwd(), 'data', 'littlesteps.db')
+    process.env.SQLITE_DB_PATH || defaultDbPath
   );
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);

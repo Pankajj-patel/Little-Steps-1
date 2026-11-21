@@ -11,10 +11,18 @@ import { createApiRouter } from './server/routes/api.ts';
 import { RetentionWorker } from './server/services/retentionWorker.ts';
 import { mediaStorage } from './server/storage/mediaStorage.ts';
 
-const PORT = Number(process.env.PORT || 3000);
-const isProduction = process.env.NODE_ENV === 'production';
+// Dynamic production & Cloud Run environment detection
+const distDir = path.resolve(process.cwd(), 'dist');
+const hasBuiltDist = fs.existsSync(path.join(distDir, 'index.html'));
+const isCloudRun = Boolean(process.env.K_SERVICE);
+const isProduction = process.env.NODE_ENV === 'production' || hasBuiltDist || isCloudRun;
 
-async function startServer() {
+// Port selection: Cloud Run injects process.env.PORT (8080).
+// In Cloud Run or production, default to 8080 if not specified. In local development, default to 3000.
+const defaultPort = isCloudRun || isProduction ? 8080 : 3000;
+const PORT = Number(process.env.PORT || defaultPort);
+
+export function createApp() {
   // 1. Initialize SQLite database, migrations, and starter seed
   const db = getDb();
   runMigrations(db);
@@ -22,7 +30,6 @@ async function startServer() {
 
   const repo = new LittleStepsRepository(db);
   const retentionWorker = new RetentionWorker(repo, mediaStorage);
-  retentionWorker.startHourlySchedule();
 
   // 2. Configure Express application
   const app = express();
@@ -39,6 +46,11 @@ async function startServer() {
     next();
   });
 
+  // Cloud Run & GCP Load Balancer container health probes
+  app.get(['/healthz', '/health'], (_req, res) => {
+    res.status(200).json({ status: 'ok', service: 'LittleSteps' });
+  });
+
   // Never allow browsers or intermediary proxies to cache private API responses
   app.use('/api/v1', (_req, res, next) => {
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -48,8 +60,15 @@ async function startServer() {
   // Mount versioned REST API
   app.use('/api/v1', createApiRouter(repo, mediaStorage, retentionWorker));
 
-  // 3. Mount Vite dev middleware in development or static dist in production
-  if (!isProduction) {
+  return { app, repo, retentionWorker, db };
+}
+
+async function startServer() {
+  const { app, retentionWorker } = createApp();
+  retentionWorker.startHourlySchedule();
+
+  // 3. Mount Vite dev middleware in development (only if dist has not been built) or static dist
+  if (!isProduction && !hasBuiltDist) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: {
@@ -60,24 +79,25 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distDir = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distDir));
     app.get('*', (_req, res) => {
       const indexHtml = path.join(distDir, 'index.html');
       if (fs.existsSync(indexHtml)) {
         res.sendFile(indexHtml);
       } else {
-        res.status(404).send('Build output not found.');
+        res.status(404).send('Build output not found. Please run npm run build.');
       }
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`LittleSteps server listening on http://0.0.0.0:${PORT}`);
+    console.log(`LittleSteps server listening on http://0.0.0.0:${PORT} [mode: ${isProduction ? 'production' : 'development'}]`);
   });
 }
 
-startServer().catch((err) => {
-  console.error('Failed to start LittleSteps server:', err);
-  process.exit(1);
-});
+if (process.env.NODE_ENV !== 'test') {
+  startServer().catch((err) => {
+    console.error('Failed to start LittleSteps server:', err);
+    process.exit(1);
+  });
+}
