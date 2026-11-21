@@ -75,15 +75,18 @@ async function startServer() {
   retentionWorker.startHourlySchedule();
 
   // 3. Mount Vite dev middleware in development or static dist in production
+  let viteServer: { close: () => Promise<void> } | null = null;
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
+    const enableHmr = process.env.DISABLE_HMR !== 'true' && !isAiStudioDev;
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: process.env.DISABLE_HMR !== 'true',
+        hmr: enableHmr,
       },
       appType: 'spa',
     });
+    viteServer = vite;
     app.use(vite.middlewares);
   } else {
     app.use(express.static(distDir));
@@ -97,11 +100,22 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const httpServer = app.listen(PORT, '0.0.0.0', () => {
     console.log(
       `LittleSteps server listening on http://0.0.0.0:${PORT} [mode: ${isProduction ? 'production' : 'development'}]`
     );
   });
+
+  const shutdown = () => {
+    httpServer.close(() => {
+      void viteServer?.close().finally(() => process.exit(0));
+      if (!viteServer) process.exit(0);
+    });
+    setTimeout(() => process.exit(0), 2000).unref();
+  };
+
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
 }
 
 const currentFilePath = fileURLToPath(import.meta.url);

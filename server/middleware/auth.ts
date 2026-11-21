@@ -21,7 +21,11 @@ export function buildSessionCookieOptions(req: Request, maxAge?: number): Cookie
     .split(',')[0]
     .trim()
     .toLowerCase();
-  const isHttps = req.secure || forwardedProto === 'https' || process.env.NODE_ENV === 'production';
+  const isHttps =
+    req.secure ||
+    forwardedProto === 'https' ||
+    process.env.NODE_ENV === 'production' ||
+    Boolean(process.env.K_SERVICE);
 
   const base: CookieOptions & { partitioned?: boolean } = {
     httpOnly: true,
@@ -96,7 +100,12 @@ export function requireCsrfProtection(req: Request, res: Response, next: NextFun
 
 export function createAuthMiddleware(repo: LittleStepsRepository) {
   return function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
-    const token = req.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
+    const authHeader = req.headers.authorization;
+    const bearerToken =
+      typeof authHeader === 'string' && authHeader.toLowerCase().startsWith('bearer ')
+        ? authHeader.slice(7).trim()
+        : undefined;
+    const token = bearerToken || (req.cookies?.[SESSION_COOKIE_NAME] as string | undefined);
     const payload = verifySessionToken(token);
     if (!payload) {
       res.status(401).json({ error: 'Authentication required. Please sign in.' });

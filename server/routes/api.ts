@@ -356,6 +356,7 @@ export function createApiRouter(
     // Prototype preview link is returned strictly in non-production preview so email verification can be tested without SMTP
     res.status(201).json({
       user,
+      sessionToken,
       verificationPreviewPath:
         process.env.NODE_ENV !== 'production'
           ? `/verify-email?token=${encodeURIComponent(rawToken)}`
@@ -388,7 +389,7 @@ export function createApiRouter(
     const { passwordHash: _omit, sessionVersion, ...user } = found;
     const token = signSessionToken(user.id, user.role, sessionVersion);
     setSessionCookie(req, res, token);
-    res.json({ user });
+    res.json({ user, sessionToken: token });
   });
 
   router.post('/auth/logout', (req, res) => {

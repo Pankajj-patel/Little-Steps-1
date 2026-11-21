@@ -45,12 +45,21 @@ export class ApiError extends Error {
   }
 }
 
+// Kept strictly in JS memory (never localStorage/sessionStorage) so auth works reliably
+// inside cross-site preview iframes even when third-party cookies are blocked by the browser.
+let inMemorySessionToken: string | null = null;
+
+export function setInMemorySessionToken(token: string | null): void {
+  inMemorySessionToken = token;
+}
+
 async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       'X-Requested-With': 'LittleSteps',
+      ...(inMemorySessionToken ? { Authorization: `Bearer ${inMemorySessionToken}` } : {}),
       ...(options?.headers ?? {}),
     },
     ...options,
@@ -82,23 +91,46 @@ export const api = {
 
   // Auth
   me: () => requestJson<{ user: UserProfile }>('/api/v1/auth/me'),
-  login: (email: string, password: string, portalRole?: UserRole) =>
-    requestJson<{ user: UserProfile }>('/api/v1/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(portalRole ? { email, password, portalRole } : { email, password }),
-    }),
-  register: (payload: {
+  login: async (email: string, password: string, portalRole?: UserRole) => {
+    const res = await requestJson<{ user: UserProfile; sessionToken?: string }>(
+      '/api/v1/auth/login',
+      {
+        method: 'POST',
+        body: JSON.stringify(portalRole ? { email, password, portalRole } : { email, password }),
+      }
+    );
+    if (res.sessionToken) {
+      inMemorySessionToken = res.sessionToken;
+    }
+    return { user: res.user };
+  },
+  register: async (payload: {
     email: string;
     password: string;
     fullName: string;
     phoneNumber?: string;
     preferredLocale?: LocaleCode;
-  }) =>
-    requestJson<{ user: UserProfile; verificationPreviewPath?: string }>('/api/v1/auth/register', {
+  }) => {
+    const res = await requestJson<{
+      user: UserProfile;
+      sessionToken?: string;
+      verificationPreviewPath?: string;
+    }>('/api/v1/auth/register', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }),
-  logout: () => requestJson<{ ok: boolean }>('/api/v1/auth/logout', { method: 'POST' }),
+    });
+    if (res.sessionToken) {
+      inMemorySessionToken = res.sessionToken;
+    }
+    return { user: res.user, verificationPreviewPath: res.verificationPreviewPath };
+  },
+  logout: async () => {
+    try {
+      return await requestJson<{ ok: boolean }>('/api/v1/auth/logout', { method: 'POST' });
+    } finally {
+      inMemorySessionToken = null;
+    }
+  },
   forgotPassword: (email: string) =>
     requestJson<{ message: string; resetPreviewPath?: string }>('/api/v1/auth/forgot-password', {
       method: 'POST',
@@ -132,6 +164,7 @@ export const api = {
       credentials: 'include',
       headers: {
         'X-Requested-With': 'LittleSteps',
+        ...(inMemorySessionToken ? { Authorization: `Bearer ${inMemorySessionToken}` } : {}),
       },
       body: formData,
     });
@@ -284,6 +317,9 @@ export const api = {
       xhr.open('POST', '/api/v1/submissions', true);
       xhr.withCredentials = true;
       xhr.setRequestHeader('X-Requested-With', 'LittleSteps');
+      if (inMemorySessionToken) {
+        xhr.setRequestHeader('Authorization', `Bearer ${inMemorySessionToken}`);
+      }
 
       const handleAbort = () => {
         xhr.abort();
