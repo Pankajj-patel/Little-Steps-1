@@ -20,6 +20,7 @@ export function EditorialImage({
   priority = false,
 }: EditorialImageProps) {
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   if (failed || !src) {
     return (
@@ -35,7 +36,12 @@ export function EditorialImage({
   }
 
   return (
-    <div className={`${aspectClassName} overflow-hidden bg-oat ${className}`}>
+    <div className={`${aspectClassName} relative overflow-hidden bg-oat ${className}`}>
+      {!loaded && (
+        <div className="absolute inset-0 bg-oat animate-pulse flex items-center justify-center pointer-events-none">
+          <Sprout className="w-6 h-6 text-stone/80" aria-hidden="true" />
+        </div>
+      )}
       <img
         src={src}
         alt={alt}
@@ -43,8 +49,11 @@ export function EditorialImage({
         decoding="async"
         fetchPriority={priority ? 'high' : 'auto'}
         referrerPolicy="no-referrer"
+        onLoad={() => setLoaded(true)}
         onError={() => setFailed(true)}
-        className="w-full h-full object-cover"
+        className={`w-full h-full object-cover transition-opacity duration-300 ${
+          loaded ? 'opacity-100' : 'opacity-0'
+        }`}
       />
     </div>
   );

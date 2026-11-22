@@ -14,3 +14,5 @@ private_media/
 *.db-wal
 *.db-shm
 .antigravity/
+playwright-report/
+test-results/

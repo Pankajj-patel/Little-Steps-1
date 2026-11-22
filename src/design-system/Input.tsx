@@ -47,7 +47,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
           disabled={disabled}
           aria-invalid={Boolean(error) || undefined}
           aria-describedby={describedBy || undefined}
-          className={`w-full min-h-[44px] rounded-lg border bg-surface px-3.5 py-2.5 text-sm text-charcoal placeholder:text-muted/70 transition-colors disabled:bg-cream disabled:text-muted disabled:cursor-not-allowed ${
+          className={`w-full min-h-[44px] rounded-lg border bg-surface px-3.5 py-2.5 text-sm text-charcoal placeholder:text-muted transition-colors disabled:bg-cream disabled:text-muted disabled:cursor-not-allowed ${
             leadingIcon ? 'pl-10' : ''
           } ${
             error

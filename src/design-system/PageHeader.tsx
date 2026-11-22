@@ -24,7 +24,7 @@ export function PageHeader({
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 min-h-[36px] text-sm font-medium text-muted hover:text-charcoal transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 min-h-[44px] text-sm font-medium text-muted hover:text-charcoal transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sage rounded"
         >
           <ArrowLeft className="w-4 h-4" aria-hidden="true" />
           <span>{backLabel}</span>
@@ -33,7 +33,7 @@ export function PageHeader({
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-1.5 max-w-2xl">
-          {kicker && <p className="text-xs text-muted">{kicker}</p>}
+          {kicker && <p className="text-xs font-semibold uppercase tracking-wider text-muted">{kicker}</p>}
           <h1 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal leading-tight">
             {title}
           </h1>

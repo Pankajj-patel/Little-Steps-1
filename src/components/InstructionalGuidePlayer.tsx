@@ -86,7 +86,7 @@ export function InstructionalGuidePlayer({
           <button
             type="button"
             onClick={() => setIsPlaying((p) => !p)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-eucalyptus text-white text-sm font-medium hover:bg-eucalyptus-hover transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-lg bg-eucalyptus text-white text-sm font-medium hover:bg-eucalyptus-hover transition-colors whitespace-nowrap shrink-0 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-eucalyptus"
           >
             {isPlaying ? (
               <>
@@ -109,7 +109,7 @@ export function InstructionalGuidePlayer({
             }}
             disabled={activeIndex === 0}
             aria-label="Previous step"
-            className="p-2 rounded-lg border border-stone text-ink hover:bg-oat disabled:opacity-40 transition-colors cursor-pointer"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-stone text-ink hover:bg-oat disabled:opacity-40 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-eucalyptus"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -122,7 +122,7 @@ export function InstructionalGuidePlayer({
             }}
             disabled={activeIndex >= steps.length - 1}
             aria-label="Next step"
-            className="p-2 rounded-lg border border-stone text-ink hover:bg-oat disabled:opacity-40 transition-colors cursor-pointer"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-stone text-ink hover:bg-oat disabled:opacity-40 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-eucalyptus"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -131,13 +131,13 @@ export function InstructionalGuidePlayer({
             type="button"
             onClick={handleRestart}
             aria-label="Restart step guide"
-            className="p-2 rounded-lg border border-stone text-olive hover:text-ink hover:bg-oat transition-colors cursor-pointer"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-stone text-olive hover:text-ink hover:bg-oat transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-eucalyptus"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Step progress bars */}
+        {/* Step progress bars with accessible 44px hitboxes */}
         <div className="flex items-center gap-1.5 flex-1 max-w-xs">
           {steps.map((step, idx) => (
             <button
@@ -147,11 +147,16 @@ export function InstructionalGuidePlayer({
                 setIsPlaying(false);
                 setActiveIndex(idx);
               }}
-              aria-label={`Jump to step ${idx + 1}`}
-              className={`h-1.5 flex-1 rounded-full transition-colors cursor-pointer ${
-                idx <= activeIndex ? 'bg-eucalyptus' : 'bg-stone'
-              }`}
-            />
+              aria-label={`Jump to step ${idx + 1} of ${steps.length}: ${step.title}`}
+              aria-current={idx === activeIndex ? 'step' : undefined}
+              className="min-h-[44px] py-3 flex-1 flex items-center cursor-pointer -my-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-eucalyptus rounded"
+            >
+              <span
+                className={`h-1.5 w-full rounded-full transition-colors ${
+                  idx <= activeIndex ? 'bg-eucalyptus' : 'bg-stone'
+                }`}
+              />
+            </button>
           ))}
         </div>
       </div>

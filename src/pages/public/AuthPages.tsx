@@ -476,41 +476,49 @@ export function RegisterPage({ onNavigate }: AuthPageProps) {
               {isHi ? (
                 <>
                   खाता बनाकर आप हमारी{' '}
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/terms')}
-                    className="text-sage font-medium hover:underline cursor-pointer"
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sage font-medium hover:underline inline-flex items-center gap-0.5"
+                    title="नियम और शर्तें (opens in new tab)"
                   >
                     नियम और शर्तों
-                  </button>{' '}
+                  </a>{' '}
                   और{' '}
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/privacy')}
-                    className="text-sage font-medium hover:underline cursor-pointer"
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sage font-medium hover:underline inline-flex items-center gap-0.5"
+                    title="गोपनीयता नीति (opens in new tab)"
                   >
                     गोपनीयता नीति
-                  </button>{' '}
+                  </a>{' '}
                   से सहमत होते हैं। अपलोड किए गए शिशु के वीडियो पूरी तरह निजी रहते हैं और 30 दिनों में स्वतः हट जाते हैं।
                 </>
               ) : (
                 <>
                   By creating an account you agree to our{' '}
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/terms')}
-                    className="text-sage font-medium hover:underline cursor-pointer"
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sage font-medium hover:underline inline-flex items-center gap-0.5"
+                    title="Terms & Conditions (opens in new tab)"
                   >
                     Terms & Conditions
-                  </button>{' '}
+                  </a>{' '}
                   and{' '}
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/privacy')}
-                    className="text-sage font-medium hover:underline cursor-pointer"
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sage font-medium hover:underline inline-flex items-center gap-0.5"
+                    title="Privacy Policy (opens in new tab)"
                   >
                     Privacy Policy
-                  </button>
+                  </a>
                   . Uploaded baby videos remain strictly private and auto-delete after 30 days.
                 </>
               )}

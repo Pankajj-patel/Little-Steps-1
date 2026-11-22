@@ -61,14 +61,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         role="region"
         aria-label="Notifications"
         aria-live="polite"
-        className="fixed bottom-20 md:bottom-6 right-4 left-4 sm:left-auto sm:w-96 z-50 space-y-2 pointer-events-none"
+        className="fixed top-4 md:top-auto md:bottom-6 right-4 left-4 sm:left-auto sm:w-96 z-50 space-y-2 pointer-events-none"
       >
         {toasts.map((item) => {
           const style = TONE_STYLES[item.tone];
           return (
             <div
               key={item.id}
-              className={`pointer-events-auto rounded-xl border p-4 flex items-start gap-3 ${style.container}`}
+              className={`pointer-events-auto rounded-xl border p-4 flex items-start gap-3 shadow-md ${style.container}`}
             >
               {style.icon}
               <div className="flex-1 min-w-0">
@@ -81,7 +81,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={() => dismiss(item.id)}
                 aria-label="Dismiss notification"
-                className="min-h-[32px] min-w-[32px] -mr-1 -mt-1 flex items-center justify-center rounded-md text-muted hover:text-charcoal cursor-pointer"
+                className="min-h-[44px] min-w-[44px] -mr-2 -mt-2 flex items-center justify-center rounded-md text-muted hover:text-charcoal cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sage"
               >
                 <X className="w-4 h-4" aria-hidden="true" />
               </button>
