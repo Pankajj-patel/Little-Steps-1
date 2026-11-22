@@ -110,6 +110,7 @@ export function ReviewerWorkbenchView() {
 
   const [statusFilter, setStatusFilter] = useState<SubmissionReviewStatus | 'all'>('all');
   const [ageFilter, setAgeFilter] = useState<string>('all');
+  const [mineOnly, setMineOnly] = useState<boolean>(false);
   const [summary, setSummary] = useState<ReviewerDashboardSummary | null>(null);
   const [queue, setQueue] = useState<ReviewerQueueItem[]>([]);
   const [loadingQueue, setLoadingQueue] = useState(true);
@@ -141,7 +142,7 @@ export function ReviewerWorkbenchView() {
     setLoadingQueue(true);
     setError(null);
     try {
-      const data = await api.getReviewerQueue(statusFilter, ageFilter);
+      const data = await api.getReviewerQueue(statusFilter, ageFilter, mineOnly);
       setSummary(data.summary);
       setQueue(data.queue);
     } catch (err) {
@@ -149,7 +150,7 @@ export function ReviewerWorkbenchView() {
     } finally {
       setLoadingQueue(false);
     }
-  }, [statusFilter, ageFilter]);
+  }, [statusFilter, ageFilter, mineOnly]);
 
   useEffect(() => {
     void loadQueue();
@@ -204,6 +205,14 @@ export function ReviewerWorkbenchView() {
           : await api.getReviewerSubmissionDetail(item.submissionId);
       hydrateDetailForm(detail);
     } catch (err) {
+      const errMsg = err instanceof Error ? err.message : '';
+      if (errMsg.toLowerCase().includes('already') || errMsg.toLowerCase().includes('another reviewer')) {
+        notify({
+          tone: 'info',
+          title: 'Submission already claimed',
+          description: 'Another reviewer claimed this clip. Opening in read-only inspection view.',
+        });
+      }
       try {
         const detail = await api.getReviewerSubmissionDetail(item.submissionId);
         hydrateDetailForm(detail);
@@ -211,9 +220,7 @@ export function ReviewerWorkbenchView() {
         setError(
           fallbackErr instanceof Error
             ? fallbackErr.message
-            : err instanceof Error
-              ? err.message
-              : 'Unable to open submission.'
+            : errMsg || 'Unable to open submission.'
         );
       }
     } finally {
@@ -1191,13 +1198,48 @@ export function ReviewerWorkbenchView() {
           ))}
         </div>
 
-        <div className="w-full sm:w-56">
-          <Select
-            label="Age group"
-            options={ageOptions}
-            value={ageFilter}
-            onChange={(e) => setAgeFilter(e.target.value)}
-          />
+        <div className="flex flex-wrap items-end gap-3 w-full sm:w-auto">
+          {!isReadOnlyAdmin && (
+            <div
+              role="group"
+              aria-label="Queue ownership filter"
+              className="inline-flex items-center gap-1 p-1 rounded-xl bg-cream border border-border"
+            >
+              <button
+                type="button"
+                aria-pressed={!mineOnly}
+                onClick={() => setMineOnly(false)}
+                className={`min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                  !mineOnly
+                    ? 'bg-surface text-charcoal border border-border'
+                    : 'text-muted hover:text-charcoal'
+                }`}
+              >
+                All Queue
+              </button>
+              <button
+                type="button"
+                aria-pressed={mineOnly}
+                onClick={() => setMineOnly(true)}
+                className={`min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                  mineOnly
+                    ? 'bg-surface text-charcoal border border-border'
+                    : 'text-muted hover:text-charcoal'
+                }`}
+              >
+                My Reviews
+              </button>
+            </div>
+          )}
+
+          <div className="w-full sm:w-56">
+            <Select
+              label="Age group"
+              options={ageOptions}
+              value={ageFilter}
+              onChange={(e) => setAgeFilter(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 

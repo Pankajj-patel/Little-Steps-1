@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   Baby,
@@ -7,6 +7,8 @@ import {
   BookOpen,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Compass,
   Hand,
   Heart,
@@ -20,7 +22,6 @@ import {
   PlayCircle,
   Settings,
   Sparkles,
-  Sprout,
   Sun,
   User,
   X,
@@ -44,6 +45,7 @@ import { api } from '../lib/api';
 import type { NavigateTarget } from '../lib/router';
 import {
   localizeActivitySummary,
+  localizeActivityTitleById,
   localizeParentingTip,
   localizePlanTitleAndFocus,
 } from '../shared/hindiContent';
@@ -67,15 +69,30 @@ import {
   getJourneyStatusMeta,
   MyPlanSection,
 } from './parent/MyPlanSection';
-import { ParentActivityStudio } from './parent/ParentActivityStudio';
-import {
-  ActivitiesLibrarySection,
-  NotificationsSection,
-  ParentingGuidesSection,
-  ProfileSection,
-  SettingsSection,
-} from './parent/ParentSecondaryViews';
-import { ProgressDashboardSection } from './parent/ProgressDashboardSection';
+
+const ParentActivityStudio = lazy(() =>
+  import('./parent/ParentActivityStudio').then((m) => ({ default: m.ParentActivityStudio }))
+);
+const ActivitiesLibrarySection = lazy(() =>
+  import('./parent/ParentSecondaryViews').then((m) => ({ default: m.ActivitiesLibrarySection }))
+);
+const NotificationsSection = lazy(() =>
+  import('./parent/ParentSecondaryViews').then((m) => ({ default: m.NotificationsSection }))
+);
+const ParentingGuidesSection = lazy(() =>
+  import('./parent/ParentSecondaryViews').then((m) => ({ default: m.ParentingGuidesSection }))
+);
+const ProfileSection = lazy(() =>
+  import('./parent/ParentSecondaryViews').then((m) => ({ default: m.ProfileSection }))
+);
+const SettingsSection = lazy(() =>
+  import('./parent/ParentSecondaryViews').then((m) => ({ default: m.SettingsSection }))
+);
+const ProgressDashboardSection = lazy(() =>
+  import('./parent/ProgressDashboardSection').then((m) => ({
+    default: m.ProgressDashboardSection,
+  }))
+);
 
 export type ParentSection =
   | 'today'
@@ -137,6 +154,8 @@ export function ParentDashboardView({
   // Active Activity Studio (works for both Today's plan items & any activity from the library)
   const [studioActivity, setStudioActivity] = useState<ActivityDetail | null>(null);
   const [loadingStudioActivity, setLoadingStudioActivity] = useState(false);
+  // Progressive disclosure for the 6 Development Areas grid on Today dashboard
+  const [showAllDomains, setShowAllDomains] = useState(false);
 
   const isHi = locale === 'hi';
   const isDemoAccount = user?.email.toLowerCase() === 'meera@littlesteps.in';
@@ -287,9 +306,61 @@ export function ParentDashboardView({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleMarkNotificationRead = useCallback(
+    async (notificationId: string) => {
+      setJourney((prev) =>
+        prev
+          ? {
+              ...prev,
+              notifications: prev.notifications.map((n) =>
+                n.id === notificationId ? { ...n, isRead: true } : n
+              ),
+            }
+          : prev
+      );
+      try {
+        await api.markNotificationRead(notificationId);
+      } catch {
+        // Optimistic update stays gentle; next journey refresh reconciles
+      }
+    },
+    []
+  );
+
+  const handleMarkAllNotificationsRead = useCallback(async () => {
+    const unreadIds = (journey?.notifications ?? [])
+      .filter((n) => !n.isRead)
+      .map((n) => n.id);
+    if (unreadIds.length === 0) return;
+    setJourney((prev) =>
+      prev
+        ? {
+            ...prev,
+            notifications: prev.notifications.map((n) => ({ ...n, isRead: true })),
+          }
+        : prev
+    );
+    try {
+      await api.markAllNotificationsRead(selectedChildId ?? undefined);
+      notify({
+        tone: 'success',
+        title: isHi ? 'सभी सूचनाएँ पढ़ी गईं' : 'All notifications marked as read',
+      });
+    } catch {
+      // ignore transient error
+    }
+  }, [journey?.notifications, selectedChildId, isHi, notify]);
+
   const handleNotificationAction = (item: ParentNotificationItem) => {
+    if (!item.isRead) {
+      void handleMarkNotificationRead(item.id);
+    }
     if (item.targetSection === 'verify-email') {
       onNavigate((verificationPreviewPath || '/verify-email') as NavigateTarget);
+      return;
+    }
+    if (item.activityId && item.kind === 'changes_requested') {
+      void openActivityInStudio(item.activityId);
       return;
     }
     if (item.targetSection) {
@@ -298,7 +369,8 @@ export function ParentDashboardView({
   };
 
   const activeChild = childrenList.find((c) => c.id === selectedChildId) ?? childrenList[0] ?? null;
-  const notificationCount = journey?.notifications.length ?? 0;
+  const unreadNotificationCount = (journey?.notifications ?? []).filter((n) => !n.isRead).length;
+  const notificationCount = unreadNotificationCount;
 
   // Primary & Secondary Navigation Definitions
   const primaryNavItems: Array<{ id: ParentSection; label: string; icon: React.ReactNode }> = [
@@ -784,25 +856,27 @@ export function ParentDashboardView({
 
           {/* Interactive Activity Detail Studio (when mother starts/resumes any activity) */}
           {!loadingStudioActivity && studioActivity && activeChild && (
-            <ParentActivityStudio
-              childId={activeChild.id}
-              childName={activeChild.displayName}
-              activity={studioActivity}
-              completionStatus={studioStatus}
-              initialNotes={studioJourneyMatch?.completion?.caregiverNotes ?? ''}
-              latestSubmission={studioSubmissionMatch}
-              locale={locale}
-              onBack={() => setStudioActivity(null)}
-              onProgressUpdated={async () => {
-                if (selectedChildId) {
-                  await loadJourney(selectedChildId, selectedDay);
-                }
-              }}
-              onOpenFeedback={() => {
-                setStudioActivity(null);
-                setSection('progress');
-              }}
-            />
+            <Suspense fallback={<SkeletonCard />}>
+              <ParentActivityStudio
+                childId={activeChild.id}
+                childName={activeChild.displayName}
+                activity={studioActivity}
+                completionStatus={studioStatus}
+                initialNotes={studioJourneyMatch?.completion?.caregiverNotes ?? ''}
+                latestSubmission={studioSubmissionMatch}
+                locale={locale}
+                onBack={() => setStudioActivity(null)}
+                onProgressUpdated={async () => {
+                  if (selectedChildId) {
+                    await loadJourney(selectedChildId, selectedDay);
+                  }
+                }}
+                onOpenFeedback={() => {
+                  setStudioActivity(null);
+                  setSection('progress');
+                }}
+              />
+            </Suspense>
           )}
 
           {/* =============================================================== */}
@@ -1139,66 +1213,180 @@ export function ParentDashboardView({
                   </section>
                 </div>
 
-                {/* SECTION 5: DEVELOPMENT AREAS (SIX CARDS WITH INDIVIDUAL PROGRESS) */}
+                {/* RECENT CAREGIVER FEEDBACK HIGHLIGHT (WHEN AVAILABLE) */}
+                {(() => {
+                  const recentFeedback = journey.recentSubmissions.find(
+                    (s) => s.review || s.reviewStatus === 'resubmit_requested'
+                  );
+                  if (!recentFeedback) return null;
+                  const localizedTitle = localizeActivityTitleById(
+                    recentFeedback.activityId,
+                    recentFeedback.activityTitle,
+                    locale
+                  );
+                  return (
+                    <section aria-label="Recent caregiver coaching feedback">
+                      <Card
+                        tone={recentFeedback.review ? 'sage' : 'peach'}
+                        padding="lg"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge tone={recentFeedback.review ? 'sage' : 'peach'}>
+                              {recentFeedback.review
+                                ? isHi
+                                  ? 'हाल की समीक्षा प्रतिक्रिया'
+                                  : 'Recent Caregiver Feedback'
+                                : isHi
+                                  ? 'अपडेटेड क्लिप का अनुरोध'
+                                  : 'Updated Clip Requested'}
+                            </Badge>
+                            {recentFeedback.review?.isAssessable &&
+                              recentFeedback.review.instructionMatchScorePct !== null && (
+                                <span className="font-mono text-xs font-semibold text-sage tabular-nums">
+                                  {recentFeedback.review.instructionMatchScorePct}%{' '}
+                                  {isHi ? 'निर्देश-मिलान' : 'instruction-match'}
+                                </span>
+                              )}
+                          </div>
+                          <h2 className="font-display text-lg font-semibold text-charcoal">
+                            {localizedTitle}
+                          </h2>
+                          <p className="text-sm text-charcoal/90 leading-relaxed max-w-2xl">
+                            {recentFeedback.review
+                              ? recentFeedback.review.strengthsNote
+                              : recentFeedback.changeRequestNote ||
+                                (isHi
+                                  ? 'समीक्षक ने बेहतर मार्गदर्शन के लिए एक स्पष्ट वीडियो क्लिप साझा करने का अनुरोध किया है।'
+                                  : 'Your reviewer asked for an updated clip so they can share clearer coaching feedback.')}
+                          </p>
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="shrink-0 self-start sm:self-center"
+                          rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                          onClick={() =>
+                            recentFeedback.reviewStatus === 'resubmit_requested'
+                              ? void openActivityInStudio(recentFeedback.activityId)
+                              : handleSelectSection('progress')
+                          }
+                        >
+                          {recentFeedback.reviewStatus === 'resubmit_requested'
+                            ? isHi
+                              ? 'गतिविधि खोलें'
+                              : 'Open Activity'
+                            : isHi
+                              ? 'पूरी प्रतिक्रिया पढ़ें'
+                              : 'Read Full Feedback'}
+                        </Button>
+                      </Card>
+                    </section>
+                  );
+                })()}
+
+                {/* SECTION 5: DEVELOPMENT AREAS (PROGRESSIVE DISCLOSURE FOR CALM FOCUS) */}
                 <section className="space-y-4">
-                  <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-0.5">
-                      <h2 className="font-display text-2xl font-semibold text-charcoal">
+                      <h2 className="font-display text-xl sm:text-2xl font-semibold text-charcoal">
                         {t('dashboard.developmentAreas')}
                       </h2>
                       <p className="text-sm text-muted">
                         {t('dashboard.developmentAreasDesc')}
                       </p>
                     </div>
-                    <Button
-                      variant="subtle"
-                      size="sm"
-                      rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                      onClick={() => handleSelectSection('progress')}
-                    >
-                      {t('dashboard.detailedProgress')}
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        aria-expanded={showAllDomains}
+                        rightIcon={
+                          showAllDomains ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          )
+                        }
+                        onClick={() => setShowAllDomains((v) => !v)}
+                      >
+                        {showAllDomains
+                          ? isHi
+                            ? 'विकास क्षेत्र समेटें'
+                            : 'Hide 6 areas'
+                          : isHi
+                            ? 'सभी 6 विकास क्षेत्र देखें'
+                            : 'Explore all 6 areas'}
+                      </Button>
+                      <Button
+                        variant="subtle"
+                        size="sm"
+                        rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                        onClick={() => handleSelectSection('progress')}
+                      >
+                        {t('dashboard.detailedProgress')}
+                      </Button>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {journey.domainProgress.map((stat) => {
-                      const pct = Math.min(
-                        100,
-                        Math.round((stat.completedCount / Math.max(1, stat.availableCount)) * 100)
-                      );
-                      return (
-                        <button
-                          key={stat.domainId}
-                          type="button"
-                          onClick={() => {
-                            setActivitiesDomainFilter(stat.domainId);
-                            handleSelectSection('activities');
-                          }}
-                          className="text-left rounded-xl border border-border bg-surface p-5 space-y-3 hover:border-sage/70 transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="w-9 h-9 rounded-lg bg-sage-soft text-sage inline-flex items-center justify-center shrink-0">
-                              {DOMAIN_ICONS[stat.domainSlug] ?? <Sparkles className="w-4 h-4" />}
-                            </span>
-                            <span className="font-mono text-xs tabular-nums text-muted">
-                              {stat.completedCount}/{stat.availableCount} · {pct}%
-                            </span>
-                          </div>
-                          <div className="space-y-2">
-                            <p className="font-display text-base font-semibold text-charcoal">
-                              {localizeDomainName(stat.domainSlug, stat.domainName, locale)}
-                            </p>
-                            <ProgressIndicator
-                              value={Math.min(stat.completedCount, stat.availableCount)}
-                              max={stat.availableCount}
-                              tone="sage"
-                              size="sm"
-                            />
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {showAllDomains ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {journey.domainProgress.map((stat) => {
+                        const pct = Math.min(
+                          100,
+                          Math.round((stat.completedCount / Math.max(1, stat.availableCount)) * 100)
+                        );
+                        return (
+                          <button
+                            key={stat.domainId}
+                            type="button"
+                            onClick={() => {
+                              setActivitiesDomainFilter(stat.domainId);
+                              handleSelectSection('activities');
+                            }}
+                            className="text-left rounded-xl border border-border bg-surface p-5 space-y-3 hover:border-sage/70 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="w-9 h-9 rounded-lg bg-sage-soft text-sage inline-flex items-center justify-center shrink-0">
+                                {DOMAIN_ICONS[stat.domainSlug] ?? <Sparkles className="w-4 h-4" />}
+                              </span>
+                              <span className="font-mono text-xs tabular-nums text-muted">
+                                {stat.completedCount}/{stat.availableCount} · {pct}%
+                              </span>
+                            </div>
+                            <div className="space-y-2">
+                              <p className="font-display text-base font-semibold text-charcoal">
+                                {localizeDomainName(stat.domainSlug, stat.domainName, locale)}
+                              </p>
+                              <ProgressIndicator
+                                value={Math.min(stat.completedCount, stat.availableCount)}
+                                max={stat.availableCount}
+                                tone="sage"
+                                size="sm"
+                              />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <Card padding="sm" className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm text-muted">
+                        {isHi
+                          ? `आपने इस चरण में 6 में से ${
+                              journey.domainProgress.filter((d) => d.completedCount > 0).length
+                            } विकास क्षेत्रों का अभ्यास किया है।`
+                          : `Explored ${
+                              journey.domainProgress.filter((d) => d.completedCount > 0).length
+                            } of 6 development areas in this stage so far.`}
+                      </p>
+                      <span className="font-mono text-xs text-sage tabular-nums">
+                        {journey.domainProgress.reduce((s, d) => s + d.completedCount, 0)}{' '}
+                        {isHi ? 'कुल पूर्ण' : 'completed'}
+                      </span>
+                    </Card>
+                  )}
                 </section>
 
                 {/* SECTION 7: PARENTING TIP */}
@@ -1257,71 +1445,85 @@ export function ParentDashboardView({
           {/* PRIMARY TAB 3: ACTIVITIES LIBRARY                               */}
           {/* =============================================================== */}
           {!studioActivity && !loadingStudioActivity && activeChild && section === 'activities' && (
-            <ActivitiesLibrarySection
-              ageGroups={ageGroups}
-              learningDomains={learningDomains}
-              initialAgeGroupSlug={activeChild.ageGroupSlug}
-              initialDomainId={activitiesDomainFilter}
-              completedActivityIds={completedActivityIds}
-              onOpenActivity={(id) => void openActivityInStudio(id)}
-            />
+            <Suspense fallback={<SkeletonCard />}>
+              <ActivitiesLibrarySection
+                ageGroups={ageGroups}
+                learningDomains={learningDomains}
+                initialAgeGroupSlug={activeChild.ageGroupSlug}
+                initialDomainId={activitiesDomainFilter}
+                completedActivityIds={completedActivityIds}
+                onOpenActivity={(id) => void openActivityInStudio(id)}
+              />
+            </Suspense>
           )}
 
           {/* =============================================================== */}
           {/* PRIMARY TAB 4: PROGRESS TRACKING, ACTIVITY & REVIEW HISTORY     */}
           {/* =============================================================== */}
           {!studioActivity && !loadingStudioActivity && journey && section === 'progress' && (
-            <ProgressDashboardSection
-              journey={journey}
-              learningDomains={learningDomains}
-              locale={locale}
-              nonDiagnosticTitle={t('policy.nonDiagnosticTitle')}
-              nonDiagnosticBody={t('policy.nonDiagnosticBody')}
-              onRefreshJourney={async () => {
-                if (selectedChildId) await loadJourney(selectedChildId, selectedDay);
-              }}
-              onExploreDomain={(domainId) => {
-                setActivitiesDomainFilter(domainId);
-                handleSelectSection('activities');
-              }}
-              onOpenActivity={(id) => void openActivityInStudio(id)}
-              onGoToday={() => handleSelectSection('today')}
-            />
+            <Suspense fallback={<SkeletonCard />}>
+              <ProgressDashboardSection
+                journey={journey}
+                learningDomains={learningDomains}
+                locale={locale}
+                nonDiagnosticTitle={t('policy.nonDiagnosticTitle')}
+                nonDiagnosticBody={t('policy.nonDiagnosticBody')}
+                onRefreshJourney={async () => {
+                  if (selectedChildId) await loadJourney(selectedChildId, selectedDay);
+                }}
+                onExploreDomain={(domainId) => {
+                  setActivitiesDomainFilter(domainId);
+                  handleSelectSection('activities');
+                }}
+                onOpenActivity={(id) => void openActivityInStudio(id)}
+                onGoToday={() => handleSelectSection('today')}
+              />
+            </Suspense>
           )}
 
           {/* =============================================================== */}
           {/* SECONDARY NAVIGATION VIEWS                                      */}
           {/* =============================================================== */}
           {!studioActivity && !loadingStudioActivity && section === 'guides' && (
-            <ParentingGuidesSection childAgeLabel={activeChild?.ageGroupLabel ?? '0–24 months'} />
+            <Suspense fallback={<SkeletonCard />}>
+              <ParentingGuidesSection childAgeLabel={activeChild?.ageGroupLabel ?? '0–24 months'} />
+            </Suspense>
           )}
 
           {!studioActivity && !loadingStudioActivity && journey && section === 'notifications' && (
-            <NotificationsSection
-              notifications={journey.notifications}
-              locale={locale}
-              onNotificationAction={handleNotificationAction}
-            />
+            <Suspense fallback={<SkeletonCard />}>
+              <NotificationsSection
+                notifications={journey.notifications}
+                locale={locale}
+                onNotificationAction={handleNotificationAction}
+                onMarkRead={handleMarkNotificationRead}
+                onMarkAllRead={handleMarkAllNotificationsRead}
+              />
+            </Suspense>
           )}
 
           {!studioActivity && !loadingStudioActivity && section === 'profile' && (
-            <ProfileSection
-              childrenList={childrenList}
-              selectedChildId={selectedChildId}
-              onSelectChild={(id) => {
-                setSelectedChildId(id);
-                setSelectedDay(1);
-              }}
-              onChildrenUpdated={loadChildren}
-            />
+            <Suspense fallback={<SkeletonCard />}>
+              <ProfileSection
+                childrenList={childrenList}
+                selectedChildId={selectedChildId}
+                onSelectChild={(id) => {
+                  setSelectedChildId(id);
+                  setSelectedDay(1);
+                }}
+                onChildrenUpdated={loadChildren}
+              />
+            </Suspense>
           )}
 
           {!studioActivity && !loadingStudioActivity && section === 'settings' && (
-            <SettingsSection
-              onNavigate={onNavigate}
-              onOpenDesignSystem={onOpenDesignSystem}
-              onLogout={onLogout}
-            />
+            <Suspense fallback={<SkeletonCard />}>
+              <SettingsSection
+                onNavigate={onNavigate}
+                onOpenDesignSystem={onOpenDesignSystem}
+                onLogout={onLogout}
+              />
+            </Suspense>
           )}
         </main>
 

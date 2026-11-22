@@ -27,6 +27,7 @@ import {
 import { api } from '../lib/api';
 import { MAX_VIDEO_DURATION_SECONDS, MAX_VIDEO_SIZE_BYTES } from '../shared/domain';
 import type {
+  LocaleCode,
   VideoStorageStatusResponse,
   VideoSubmissionSummary,
 } from '../shared/types';
@@ -118,6 +119,7 @@ interface VideoCaptureUploaderProps {
   activityVersion?: number;
   initialMode?: 'record' | 'upload';
   existingSubmission?: VideoSubmissionSummary | null;
+  locale?: LocaleCode;
   onSubmitted: (submission: VideoSubmissionSummary) => void;
   onCancel: () => void;
 }
@@ -130,9 +132,15 @@ export function VideoCaptureUploader({
   activityVersion = 1,
   initialMode,
   existingSubmission,
+  locale = 'en',
   onSubmitted,
   onCancel,
 }: VideoCaptureUploaderProps) {
+  const isHi = locale === 'hi';
+  const cameraCaptureSupported =
+    typeof navigator !== 'undefined' &&
+    Boolean(navigator.mediaDevices?.getUserMedia) &&
+    typeof MediaRecorder !== 'undefined';
   const [selectedFile, setSelectedFile] = useState<Blob | null>(null);
   const [filename, setFilename] = useState<string>('practice.webm');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -255,7 +263,11 @@ export function VideoCaptureUploader({
       const dur = Number.isFinite(probe.duration) ? probe.duration : 15;
       URL.revokeObjectURL(tempUrl);
       if (dur > MAX_VIDEO_DURATION_SECONDS) {
-        setError('Please keep activity clips at 2 minutes (120 seconds) or shorter.');
+        setError(
+          isHi
+            ? 'कृपया गतिविधि वीडियो को 2 मिनट (120 सेकंड) या उससे छोटा रखें।'
+            : 'Please keep activity clips at 2 minutes (120 seconds) or shorter.'
+        );
         return;
       }
       setPreparedVideo(file, file.name, dur);
@@ -530,7 +542,9 @@ export function VideoCaptureUploader({
               </Badge>
             </div>
             <h2 className="font-display text-xl sm:text-2xl font-semibold text-charcoal">
-              Submit Practice Video for Caregiver Feedback
+              {isHi
+                ? 'देखभालकर्ता मार्गदर्शन के लिए अभ्यास वीडियो भेजें'
+                : 'Submit Practice Video for Caregiver Feedback'}
             </h2>
             <p className="text-sm text-muted leading-relaxed max-w-2xl">
               {stateBadge.description}
@@ -545,7 +559,7 @@ export function VideoCaptureUploader({
             leftIcon={<X className="w-4 h-4" />}
             onClick={onCancel}
           >
-            Close
+            {isHi ? 'बंद करें' : 'Close'}
           </Button>
         </div>
 
@@ -605,10 +619,16 @@ export function VideoCaptureUploader({
                 </div>
                 <div className="space-y-0.5">
                   <p className="font-display text-lg font-semibold text-charcoal">
-                    Record Activity
+                    {isHi ? 'गतिविधि रिकॉर्ड करें' : 'Record Activity'}
                   </p>
                   <p className="text-xs text-muted leading-relaxed">
-                    Opens your camera only when you tap here. Keep clips calm and under 2 minutes.
+                    {!cameraCaptureSupported
+                      ? isHi
+                        ? 'इस ब्राउज़र में सीधी रिकॉर्डिंग उपलब्ध नहीं है — नीचे डिवाइस से वीडियो अपलोड करें।'
+                        : 'Direct camera recording is unavailable in this browser (e.g., iOS Safari WebView) — use Upload from Device instead.'
+                      : isHi
+                        ? 'कैमरा केवल यहाँ टैप करने पर खुलेगा। क्लिप को शांत और 2 मिनट से कम रखें।'
+                        : 'Opens your camera only when you tap here. Keep clips calm and under 2 minutes.'}
                   </p>
                 </div>
               </button>
@@ -630,10 +650,12 @@ export function VideoCaptureUploader({
                 </div>
                 <div className="space-y-0.5">
                   <p className="font-display text-lg font-semibold text-charcoal">
-                    Upload from Device
+                    {isHi ? 'डिवाइस से अपलोड करें' : 'Upload from Device'}
                   </p>
                   <p className="text-xs text-muted leading-relaxed">
-                    Select a clip you already recorded on your phone or computer.
+                    {isHi
+                      ? 'अपने फ़ोन या कंप्यूटर पर पहले से रिकॉर्ड किया गया वीडियो चुनें।'
+                      : 'Select a clip you already recorded on your phone or computer.'}
                   </p>
                 </div>
               </button>
@@ -819,8 +841,13 @@ export function VideoCaptureUploader({
               className="mt-1 h-4 w-4 rounded border-border-strong accent-sage shrink-0"
             />
             <span className="leading-relaxed">
-              I consent to storing this video clip for caregiver activity coaching under the 30-day
-              auto-deletion policy{isDemoMode ? ' (acknowledging Demo Storage Mode is currently active)' : ''}.
+              {isHi
+                ? `मैं 30-दिन स्वतः हटाने की नीति के अंतर्गत देखभालकर्ता मार्गदर्शन के लिए यह वीडियो क्लिप सहेजने की सहमति देती/देता हूँ${
+                    isDemoMode ? ' (डेमो स्टोरेज मोड सक्रिय है)' : ''
+                  }।`
+                : `I consent to storing this video clip for caregiver activity coaching under the 30-day auto-deletion policy${
+                    isDemoMode ? ' (acknowledging Demo Storage Mode is currently active)' : ''
+                  }.`}
             </span>
           </label>
         </div>
@@ -895,7 +922,7 @@ export function VideoCaptureUploader({
               disabled={isUploading}
               onClick={onCancel}
             >
-              Cancel
+              {isHi ? 'रद्द करें' : 'Cancel'}
             </Button>
 
             {uiState === 'failed' && selectedFile && consentConfirmed ? (
@@ -905,7 +932,7 @@ export function VideoCaptureUploader({
                 leftIcon={<RotateCcw className="w-4 h-4" />}
                 onClick={() => void executeUpload()}
               >
-                Retry Upload
+                {isHi ? 'पुनः अपलोड करें' : 'Retry Upload'}
               </Button>
             ) : (
               <Button
@@ -915,7 +942,13 @@ export function VideoCaptureUploader({
                 disabled={isUploading || isRecording || !selectedFile || !consentConfirmed}
                 leftIcon={<UploadCloud className="w-4 h-4" />}
               >
-                {isUploading ? 'Uploading...' : 'Submit for Review'}
+                {isUploading
+                  ? isHi
+                    ? 'अपलोड हो रहा है...'
+                    : 'Uploading...'
+                  : isHi
+                    ? 'समीक्षा के लिए भेजें'
+                    : 'Submit for Review'}
               </Button>
             )}
           </div>

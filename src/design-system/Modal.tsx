@@ -34,6 +34,8 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
     previousFocusRef.current = document.activeElement as HTMLElement | null;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
 
     // Move keyboard focus inside the dialog on open
     const focusTimer = window.setTimeout(() => {
@@ -73,6 +75,7 @@ export function Modal({
     return () => {
       window.clearTimeout(focusTimer);
       window.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = prevOverflow;
       previousFocusRef.current?.focus();
     };
   }, [open, onClose]);

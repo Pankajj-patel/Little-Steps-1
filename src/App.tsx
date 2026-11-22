@@ -1,22 +1,16 @@
-import React, { Suspense, lazy, useState } from 'react';
+import React, { Suspense, lazy } from 'react';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { PublicLayout } from './components/PublicLayout';
 import { TopBar, type TopBarNavItem } from './components/TopBar';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './design-system';
 import { usePublicRouter, type NavigateTarget, type PublicRoute } from './lib/router';
-import type { AdminTab } from './pages/AdminConsoleView';
-import { ParentDashboardView } from './pages/ParentDashboardView';
-import {
-  ForgotPasswordPage,
-  LoginPage,
-  RegisterPage,
-  ResetPasswordPage,
-  VerifyEmailPage,
-} from './pages/public/AuthPages';
 import { HomePage } from './pages/public/HomePage';
-import { AboutPage, HowItWorksPage, OurApproachPage } from './pages/public/InfoPages';
-import { ContactPage, PrivacyPolicyPage, TermsPage } from './pages/public/SupportLegalPages';
 
+// Lazy-loaded workspaces & secondary pages for fast initial paint and zero landing CLS
+const ParentDashboardView = lazy(() =>
+  import('./pages/ParentDashboardView').then((m) => ({ default: m.ParentDashboardView }))
+);
 const AdminConsoleView = lazy(() =>
   import('./pages/AdminConsoleView').then((m) => ({ default: m.AdminConsoleView }))
 );
@@ -31,10 +25,43 @@ const ParentOnboardingView = lazy(() =>
 const ReviewerWorkbenchView = lazy(() =>
   import('./pages/ReviewerWorkbenchView').then((m) => ({ default: m.ReviewerWorkbenchView }))
 );
+const LoginPage = lazy(() =>
+  import('./pages/public/AuthPages').then((m) => ({ default: m.LoginPage }))
+);
+const RegisterPage = lazy(() =>
+  import('./pages/public/AuthPages').then((m) => ({ default: m.RegisterPage }))
+);
+const ForgotPasswordPage = lazy(() =>
+  import('./pages/public/AuthPages').then((m) => ({ default: m.ForgotPasswordPage }))
+);
+const ResetPasswordPage = lazy(() =>
+  import('./pages/public/AuthPages').then((m) => ({ default: m.ResetPasswordPage }))
+);
+const VerifyEmailPage = lazy(() =>
+  import('./pages/public/AuthPages').then((m) => ({ default: m.VerifyEmailPage }))
+);
+const AboutPage = lazy(() =>
+  import('./pages/public/InfoPages').then((m) => ({ default: m.AboutPage }))
+);
+const HowItWorksPage = lazy(() =>
+  import('./pages/public/InfoPages').then((m) => ({ default: m.HowItWorksPage }))
+);
+const OurApproachPage = lazy(() =>
+  import('./pages/public/InfoPages').then((m) => ({ default: m.OurApproachPage }))
+);
+const ContactPage = lazy(() =>
+  import('./pages/public/SupportLegalPages').then((m) => ({ default: m.ContactPage }))
+);
+const PrivacyPolicyPage = lazy(() =>
+  import('./pages/public/SupportLegalPages').then((m) => ({ default: m.PrivacyPolicyPage }))
+);
+const TermsPage = lazy(() =>
+  import('./pages/public/SupportLegalPages').then((m) => ({ default: m.TermsPage }))
+);
 
 function RouteLoadingFallback() {
   return (
-    <div className="min-h-[60vh] flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4" role="status" aria-live="polite">
       <p className="font-display text-base text-muted">Loading workspace...</p>
     </div>
   );
@@ -61,18 +88,19 @@ function AuthenticatedWorkspace({
   onLogout: () => Promise<void>;
 }) {
   const { user, t } = useAuth();
-  const [adminTab, setAdminTab] = useState<AdminTab>('curriculum');
 
   if (!user) return null;
 
-  // Step 4 Parent Dashboard owns its dedicated desktop sidebar, top header, and mobile bottom nav
+  // Parent Dashboard owns its dedicated desktop sidebar, top header, and mobile bottom nav
   if (user.role === 'parent') {
     return (
-      <ParentDashboardView
-        onNavigate={onNavigate}
-        onOpenDesignSystem={onOpenDesignSystem}
-        onLogout={onLogout}
-      />
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <ParentDashboardView
+          onNavigate={onNavigate}
+          onOpenDesignSystem={onOpenDesignSystem}
+          onLogout={onLogout}
+        />
+      </Suspense>
     );
   }
 
@@ -102,36 +130,17 @@ function AuthenticatedWorkspace({
     );
   }
 
-  const adminNavItems: TopBarNavItem[] = [
-    { id: 'curriculum', label: t('nav.curriculum') },
-    { id: 'plans', label: t('nav.plans') },
-    { id: 'users', label: t('nav.users') },
-    { id: 'privacy', label: t('nav.privacy') },
-    { id: 'design-system', label: 'Design System' },
-  ];
-
+  // Admin Console owns its single unified sidebar, mobile header, and main-content landmark
   return (
-    <div className="min-h-screen bg-offwhite text-charcoal flex flex-col">
+    <div className="min-h-screen bg-offwhite text-charcoal">
       <SkipToContentLink />
-      <TopBar
-        navItems={adminNavItems}
-        activeNavId={adminTab}
-        onSelectNav={(id) => {
-          if (id === 'design-system') {
-            onOpenDesignSystem();
-            return;
-          }
-          setAdminTab(id as AdminTab);
-        }}
-        primaryActionLabel={t('auth.signOut')}
-        onPrimaryAction={() => void onLogout()}
-        onBrandClick={() => setAdminTab('curriculum')}
-      />
-      <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
-        <Suspense fallback={<RouteLoadingFallback />}>
-          <AdminConsoleView activeTab={adminTab} />
-        </Suspense>
-      </main>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <AdminConsoleView
+          activeTab="dashboard"
+          onLogout={onLogout}
+          onOpenDesignSystem={onOpenDesignSystem}
+        />
+      </Suspense>
     </div>
   );
 }
@@ -153,13 +162,13 @@ function LittleStepsRouter() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-offwhite flex items-center justify-center">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center" role="status">
         <p className="font-display text-lg text-muted">Preparing LittleSteps...</p>
       </div>
     );
   }
 
-  // Step 1 Design System Reference accessible anytime via /design-system
+  // Design System Reference accessible anytime via /design-system
   if (route === '/design-system') {
     return (
       <Suspense fallback={<RouteLoadingFallback />}>
@@ -184,12 +193,16 @@ function LittleStepsRouter() {
               onBrandClick={() => navigate('/')}
             />
             <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
-              <VerifyEmailPage onNavigate={navigate} initialToken={getQueryParam('token')} />
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <VerifyEmailPage onNavigate={navigate} initialToken={getQueryParam('token')} />
+              </Suspense>
             </main>
           </>
         ) : (
           <PublicLayout currentRoute={route} onNavigate={navigate}>
-            <VerifyEmailPage onNavigate={navigate} initialToken={getQueryParam('token')} />
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <VerifyEmailPage onNavigate={navigate} initialToken={getQueryParam('token')} />
+            </Suspense>
           </PublicLayout>
         )}
       </div>
@@ -211,12 +224,16 @@ function LittleStepsRouter() {
               onBrandClick={() => navigate('/')}
             />
             <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
-              <ForgotPasswordPage onNavigate={navigate} />
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <ForgotPasswordPage onNavigate={navigate} />
+              </Suspense>
             </main>
           </>
         ) : (
           <PublicLayout currentRoute={route} onNavigate={navigate}>
-            <ForgotPasswordPage onNavigate={navigate} />
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <ForgotPasswordPage onNavigate={navigate} />
+            </Suspense>
           </PublicLayout>
         )}
       </div>
@@ -226,12 +243,14 @@ function LittleStepsRouter() {
   if (route === '/reset-password') {
     return (
       <PublicLayout currentRoute={route} onNavigate={navigate}>
-        <ResetPasswordPage onNavigate={navigate} initialToken={getQueryParam('token')} />
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <ResetPasswordPage onNavigate={navigate} initialToken={getQueryParam('token')} />
+        </Suspense>
       </PublicLayout>
     );
   }
 
-  // Step 3 Parent Onboarding Gate: guide newly registered mothers step-by-step before entering dashboard
+  // Parent Onboarding Gate: guide newly registered mothers step-by-step before entering dashboard
   if (user && user.role === 'parent' && !user.onboardingCompletedAt) {
     return (
       <div className="min-h-screen bg-offwhite text-charcoal flex flex-col">
@@ -263,7 +282,7 @@ function LittleStepsRouter() {
     );
   }
 
-  // Step 2 & Step 3 Public & Authentication Website
+  // Public & Authentication Website
   const renderPublicPage = (activeRoute: PublicRoute) => {
     switch (activeRoute) {
       case '/':
@@ -299,19 +318,19 @@ function LittleStepsRouter() {
 
   return (
     <PublicLayout currentRoute={route} onNavigate={navigate}>
-      {renderPublicPage(route)}
+      <Suspense fallback={<RouteLoadingFallback />}>{renderPublicPage(route)}</Suspense>
     </PublicLayout>
   );
 }
 
 export default function App() {
   return (
-    <ToastProvider>
-      <AuthProvider>
-        <LittleStepsRouter />
-      </AuthProvider>
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <AuthProvider>
+          <LittleStepsRouter />
+        </AuthProvider>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
-
-

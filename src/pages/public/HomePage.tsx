@@ -194,7 +194,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
 
           <div className="lg:col-span-6 flex">
             <div className="w-full rounded-2xl border border-border bg-surface overflow-hidden flex flex-col">
-              <div className="flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-0">
+              <div className="flex-1 min-h-[280px] sm:min-h-[360px] lg:min-h-[380px]">
                 <EditorialImage
                   src={EDITORIAL_IMAGES.heroMontessori}
                   alt="Mother smiling calmly beside her baby playing with wooden rings on a sunlit woven cotton floor mat"

@@ -137,13 +137,29 @@ export function requireRole(...allowedRoles: UserRole[]) {
 }
 
 /**
- * Lightweight in-memory sliding-window rate limiter for auth and upload endpoints.
+ * Lightweight in-memory sliding-window rate limiter for auth and upload endpoints
+ * with periodic stale-bucket pruning to bound memory usage.
  */
 export function createRateLimiter(windowMs: number, maxRequests: number) {
   const buckets = new Map<string, number[]>();
+  const MAX_BUCKETS = 5000;
+  let lastPruneAt = Date.now();
+
   return function rateLimit(req: Request, res: Response, next: NextFunction): void {
-    const key = `${req.ip || 'local'}:${req.path}`;
     const now = Date.now();
+    if (now - lastPruneAt > windowMs || buckets.size > MAX_BUCKETS) {
+      for (const [bucketKey, timestamps] of buckets.entries()) {
+        const active = timestamps.filter((ts) => now - ts < windowMs);
+        if (active.length === 0) {
+          buckets.delete(bucketKey);
+        } else {
+          buckets.set(bucketKey, active);
+        }
+      }
+      lastPruneAt = now;
+    }
+
+    const key = `${req.ip || 'local'}:${req.method}:${req.path}`;
     const recent = (buckets.get(key) || []).filter((ts) => now - ts < windowMs);
     if (recent.length >= maxRequests) {
       res.status(429).json({ error: 'Too many requests. Please wait a moment and try again.' });

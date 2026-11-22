@@ -2,6 +2,8 @@ import { afterAll, describe, expect, test } from '../bun-test-shim';
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import { resolveDefaultDbPath } from '../../server/db/connection';
+import { mediaStorage } from '../../server/storage/mediaStorage';
 
 const BASE = 'http://localhost:3000/api/v1';
 const CSRF_HEADERS = { 'X-Requested-With': 'LittleSteps' };
@@ -47,7 +49,7 @@ const createdActivityIds: string[] = [];
 
 afterAll(() => {
   // Clean up any temporary test users & activities created in SQLite so the demo DB stays clean
-  const dbPath = path.resolve(process.cwd(), process.env.SQLITE_DB_PATH || './data/littlesteps.db');
+  const dbPath = resolveDefaultDbPath();
   if (!fs.existsSync(dbPath)) return;
   const db = new Database(dbPath);
   try {
@@ -64,13 +66,14 @@ afterAll(() => {
 });
 
 describe('Security Headers, CSRF, SQLi & Authentication Flows', () => {
-  test('GET /health returns 200 with hardened security and no-store cache headers', async () => {
+  test('GET /health returns 200 with hardened security, CSP, and no-store cache headers', async () => {
     const res = await apiJson<{ status: string }>('/health');
     expect(res.status).toBe(200);
     expect(res.data.status).toBe('ok');
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
     expect(res.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
     expect(res.headers.get('permissions-policy')).toContain('geolocation=()');
+    expect(res.headers.get('content-security-policy')).toContain("default-src 'self'");
     expect(res.headers.get('cache-control')).toContain('no-store');
     expect(res.headers.get('x-powered-by')).toBeNull();
   });
@@ -345,6 +348,20 @@ describe('End-to-End Parent, Video Privacy, IDOR, Reviewer & Admin Journeys', ()
     const uploadBody = (await uploadRes.json()) as { submission: { id: string } };
     const subId = uploadBody.submission.id;
 
+    // Duplicate rapid submission guard -> 409 Conflict
+    const dupForm = new FormData();
+    dupForm.append('video', new Blob([VALID_WEBM_BYTES], { type: 'video/webm' }), 'practice-dup.webm');
+    dupForm.append('childId', childAId);
+    dupForm.append('activityId', firstAct.id);
+    dupForm.append('durationSeconds', '5');
+    dupForm.append('consentConfirmed', 'true');
+    const dupRes = await fetch(`${BASE}/submissions`, {
+      method: 'POST',
+      headers: { Cookie: cookieA, ...CSRF_HEADERS },
+      body: dupForm,
+    });
+    expect(dupRes.status).toBe(409);
+
     // 5. Private stream token, byte-range streaming & IDOR protection
     const tokenRes = await apiJson<{ streamUrl: string; expiresAt: string }>(
       `/submissions/${subId}/stream-token`,
@@ -468,20 +485,54 @@ describe('End-to-End Parent, Video Privacy, IDOR, Reviewer & Admin Journeys', ()
     );
     expect(progAfter.data.activityHistory.every((h) => h.displayStatus === 'reviewed')).toBe(true);
 
-    // 7. Orphan-free child deletion purges stored video file from private_media!
-    const db = new Database(
-      path.resolve(process.cwd(), process.env.SQLITE_DB_PATH || './data/littlesteps.db')
+    // Persistent notifications: unread review notification -> mark read -> persists
+    const notifList = await apiJson<{
+      notifications: Array<{ id: string; isRead: boolean; kind: string }>;
+      unreadCount: number;
+    }>(`/notifications?childId=${childAId}`, { cookie: cookieA });
+    expect(notifList.status).toBe(200);
+    expect(notifList.data.unreadCount).toBeGreaterThanOrEqual(1);
+    const firstNotifId = notifList.data.notifications[0]!.id;
+
+    const markOne = await apiJson<{ ok: boolean }>(
+      `/notifications/${encodeURIComponent(firstNotifId)}/read`,
+      { method: 'POST', cookie: cookieA }
     );
+    expect(markOne.status).toBe(200);
+
+    const notifAfter = await apiJson<{
+      notifications: Array<{ id: string; isRead: boolean }>;
+    }>(`/notifications?childId=${childAId}`, { cookie: cookieA });
+    expect(notifAfter.data.notifications.find((n) => n.id === firstNotifId)?.isRead).toBe(true);
+
+    // Cross-parent notifications IDOR blocked -> 404
+    expect((await apiJson(`/notifications?childId=${childAId}`, { cookie: cookieB })).status).toBe(
+      404
+    );
+
+    // DOB update preserves historical ageGroupLabelSnapshot on past completions
+    const tenMonthsAgo = new Date();
+    tenMonthsAgo.setMonth(tenMonthsAgo.getMonth() - 10);
+    const updDob = await apiJson<{ child: { ageGroupSlug: string } }>(`/children/${childAId}`, {
+      method: 'PATCH',
+      cookie: cookieA,
+      body: { displayName: 'Kabir', dateOfBirth: tenMonthsAgo.toISOString().slice(0, 10) },
+    });
+    expect(updDob.status).toBe(200);
+    expect(updDob.data.child.ageGroupSlug).toBe('9-12m');
+    const histAfterDob = await apiJson<{
+      activityHistory: Array<{ ageGroupLabelSnapshot: string }>;
+    }>(`/progress/${childAId}`, { cookie: cookieA });
+    expect(histAfterDob.data.activityHistory[0]?.ageGroupLabelSnapshot).toBe('6–9 months');
+
+    // 7. Orphan-free child deletion purges stored video file from private_media!
+    const db = new Database(resolveDefaultDbPath());
     const subRow = db
       .prepare('SELECT storage_key FROM video_submissions WHERE id = ?')
       .get(subId) as { storage_key: string } | undefined;
     db.close();
     expect(subRow?.storage_key).toBeTruthy();
-    const vaultFilePath = path.resolve(
-      process.cwd(),
-      process.env.PRIVATE_MEDIA_DIR || './private_media',
-      subRow!.storage_key
-    );
+    const vaultFilePath = path.resolve(mediaStorage.getRootDir(), subRow!.storage_key);
     expect(fs.existsSync(vaultFilePath)).toBe(true);
 
     const delChild = await apiJson<{ ok: boolean; purgedVideos: number }>(`/children/${childAId}`, {
@@ -551,6 +602,44 @@ describe('End-to-End Parent, Video Privacy, IDOR, Reviewer & Admin Journeys', ()
       cookie: adminCookie,
     });
     expect(delAct.status).toBe(200);
+
+    // Reviewer age-group scope enforcement test (create scoped reviewer -> out-of-scope blocked)
+    const scopedRevEmail = `qa_scoped_rev_${runTag}@example.com`;
+    createdEmails.push(scopedRevEmail);
+    const createScopedRev = await apiJson<{ reviewer: { id: string } }>('/admin/reviewers', {
+      method: 'POST',
+      cookie: adminCookie,
+      body: {
+        email: scopedRevEmail,
+        fullName: 'Scoped QA Reviewer',
+        password: 'Password123!',
+        allowedAgeGroupSlugs: ['0-3m'],
+      },
+    });
+    expect(createScopedRev.status).toBe(201);
+    const scopedLogin = await fetch(`${BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...CSRF_HEADERS },
+      body: JSON.stringify({ email: scopedRevEmail, password: 'Password123!' }),
+    });
+    expect(scopedLogin.status).toBe(200);
+    const scopedCookie = extractCookie(scopedLogin);
+    const scopedQueue = await apiJson<{
+      queue: Array<{ ageGroupSlug: string }>;
+    }>('/reviewer/queue', { cookie: scopedCookie });
+    expect(scopedQueue.status).toBe(200);
+    expect(scopedQueue.data.queue.every((q) => q.ageGroupSlug === '0-3m')).toBe(true);
+    // Attempting to fetch an out-of-scope 6-9m seeded submission directly returns 403
+    const fullRevQueue = await apiJson<{
+      queue: Array<{ submissionId: string; ageGroupSlug: string }>;
+    }>('/reviewer/queue', { cookie: revCookie });
+    const outOfScopeSub = fullRevQueue.data.queue.find((q) => q.ageGroupSlug !== '0-3m');
+    if (outOfScopeSub) {
+      const forbiddenDetail = await apiJson(`/reviewer/submissions/${outOfScopeSub.submissionId}`, {
+        cookie: scopedCookie,
+      });
+      expect(forbiddenDetail.status).toBe(403);
+    }
 
     // Audit logs & retention sweep
     const auditLogs = await apiJson<{ logs: unknown[] }>('/admin/audit-logs', { cookie: adminCookie });

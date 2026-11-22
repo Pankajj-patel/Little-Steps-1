@@ -18,6 +18,7 @@ import type {
   LocaleCode,
   MediaAuditLogItem,
   NotificationPreference,
+  ParentNotificationItem,
   ParentProgressOverviewResponse,
   PreferredActivityTime,
   ReviewerDashboardSummary,
@@ -282,6 +283,24 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  // Parent Notifications (Persisted Read State)
+  listNotifications: (childId?: string) => {
+    const query = childId ? `?childId=${encodeURIComponent(childId)}` : '';
+    return requestJson<{ notifications: ParentNotificationItem[]; unreadCount: number }>(
+      `/api/v1/notifications${query}`
+    );
+  },
+  markNotificationRead: (notificationId: string) =>
+    requestJson<{ ok: boolean }>(
+      `/api/v1/notifications/${encodeURIComponent(notificationId)}/read`,
+      { method: 'POST' }
+    ),
+  markAllNotificationsRead: (childId?: string) =>
+    requestJson<{ ok: boolean; markedCount: number }>('/api/v1/notifications/read-all', {
+      method: 'POST',
+      body: JSON.stringify(childId ? { childId } : {}),
+    }),
+
   // Submissions & Private Video Streaming
   getVideoStorageStatus: () =>
     requestJson<VideoStorageStatusResponse>('/api/v1/submissions/storage-status'),
@@ -376,9 +395,17 @@ export const api = {
     }),
 
   // Reviewer
-  getReviewerQueue: (status: SubmissionReviewStatus | 'all', ageGroupSlug: string) =>
-    requestJson<{ summary: ReviewerDashboardSummary; queue: ReviewerQueueItem[] }>(
-      `/api/v1/reviewer/queue?status=${encodeURIComponent(status)}&ageGroupSlug=${encodeURIComponent(ageGroupSlug)}`
+  getReviewerQueue: (
+    status: SubmissionReviewStatus | 'all',
+    ageGroupSlug: string,
+    mineOnly = false
+  ) =>
+    requestJson<{
+      summary: ReviewerDashboardSummary;
+      queue: ReviewerQueueItem[];
+      allowedAgeGroupSlugs?: string[];
+    }>(
+      `/api/v1/reviewer/queue?status=${encodeURIComponent(status)}&ageGroupSlug=${encodeURIComponent(ageGroupSlug)}${mineOnly ? '&mine=true' : ''}`
     ),
   claimSubmission: (submissionId: string) =>
     requestJson<ReviewerSubmissionDetail>(`/api/v1/reviewer/submissions/${submissionId}/claim`, {

@@ -343,12 +343,19 @@ export interface ParentingTip {
 
 export interface ParentNotificationItem {
   id: string;
-  kind: 'review_ready' | 'submission_queued' | 'email_verify' | 'daily_rhythm';
+  kind:
+    | 'review_ready'
+    | 'changes_requested'
+    | 'submission_queued'
+    | 'email_verify'
+    | 'daily_rhythm';
   title: string;
   description: string;
   createdAt: string;
+  isRead: boolean;
   actionLabel?: string;
   targetSection?: 'today' | 'my-plan' | 'activities' | 'progress' | 'verify-email';
+  activityId?: string;
 }
 
 export interface TodayJourneyResponse {

@@ -339,73 +339,144 @@ interface NotificationsSectionProps {
   notifications: ParentNotificationItem[];
   locale: LocaleCode;
   onNotificationAction: (item: ParentNotificationItem) => void;
+  onMarkRead?: (notificationId: string) => Promise<void> | void;
+  onMarkAllRead?: () => Promise<void> | void;
 }
 
 export function NotificationsSection({
   notifications,
   locale,
   onNotificationAction,
+  onMarkRead,
+  onMarkAllRead,
 }: NotificationsSectionProps) {
+  const isHi = locale === 'hi';
+  const [markingAll, setMarkingAll] = useState(false);
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  const handleMarkAll = async () => {
+    if (!onMarkAllRead || unreadCount === 0) return;
+    setMarkingAll(true);
+    try {
+      await onMarkAllRead();
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h2 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal">
-          Notifications
-        </h2>
-        <p className="text-sm text-muted">
-          Calm updates on caregiver coaching feedback, account security, and today’s plan.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <h2 className="font-display text-2xl sm:text-3xl font-semibold text-charcoal">
+              {translate(locale, 'nav.notifications')}
+            </h2>
+            {unreadCount > 0 && (
+              <Badge tone="peach">
+                {isHi ? `${unreadCount} अपठित` : `${unreadCount} unread`}
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-muted">
+            {isHi
+              ? 'देखभालकर्ता मार्गदर्शन प्रतिक्रिया, खाता सुरक्षा और आज की योजना से जुड़े शांत अपडेट।'
+              : 'Calm updates on caregiver coaching feedback, account security, and today’s plan.'}
+          </p>
+        </div>
+
+        {onMarkAllRead && unreadCount > 0 && (
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={markingAll}
+            onClick={() => void handleMarkAll()}
+          >
+            {isHi ? 'सभी को पढ़ा हुआ चिह्नित करें' : 'Mark all as read'}
+          </Button>
+        )}
       </div>
 
       {notifications.length === 0 ? (
         <EmptyState
           icon={<Bell className="w-6 h-6" />}
-          title="You’re all caught up"
-          description="There are no new alerts right now. Take a calm breath and enjoy today’s moments."
+          title={isHi ? 'आप पूरी तरह अपडेट हैं' : 'You’re all caught up'}
+          description={
+            isHi
+              ? 'अभी कोई नई सूचना नहीं है। शांत सांस लें और आज के पलों का आनंद लें।'
+              : 'There are no new alerts right now. Take a calm breath and enjoy today’s moments.'
+          }
         />
       ) : (
         <div className="space-y-3">
-          {notifications.map((n) => (
-            <Card key={n.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <span
-                  className={`w-9 h-9 rounded-lg inline-flex items-center justify-center shrink-0 ${
-                    n.kind === 'review_ready'
-                      ? 'bg-sage-soft text-sage'
-                      : n.kind === 'email_verify'
-                        ? 'bg-peach-soft text-peach-ink'
-                        : 'bg-cream text-sage'
-                  }`}
-                >
-                  {n.kind === 'review_ready' ? (
-                    <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-                  ) : n.kind === 'email_verify' ? (
-                    <MailCheck className="w-4 h-4" aria-hidden="true" />
-                  ) : n.kind === 'submission_queued' ? (
-                    <Clock className="w-4 h-4" aria-hidden="true" />
-                  ) : (
-                    <Sparkles className="w-4 h-4" aria-hidden="true" />
-                  )}
-                </span>
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-charcoal">{n.title}</p>
-                  <p className="text-xs text-muted leading-relaxed">{n.description}</p>
-                  <p className="font-mono text-[11px] text-muted tabular-nums">
-                    {formatDateReadable(n.createdAt, locale)}
-                  </p>
+          {notifications.map((n) => {
+            const isUnread = !n.isRead;
+            return (
+              <Card
+                key={n.id}
+                className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors ${
+                  isUnread ? 'border-sage/50 bg-sage-soft/20' : 'bg-surface'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <span
+                    className={`w-9 h-9 rounded-lg inline-flex items-center justify-center shrink-0 ${
+                      n.kind === 'review_ready'
+                        ? 'bg-sage-soft text-sage'
+                        : n.kind === 'changes_requested' || n.kind === 'email_verify'
+                          ? 'bg-peach-soft text-peach-ink'
+                          : 'bg-cream text-sage'
+                    }`}
+                  >
+                    {n.kind === 'review_ready' ? (
+                      <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+                    ) : n.kind === 'email_verify' ? (
+                      <MailCheck className="w-4 h-4" aria-hidden="true" />
+                    ) : n.kind === 'submission_queued' || n.kind === 'changes_requested' ? (
+                      <Clock className="w-4 h-4" aria-hidden="true" />
+                    ) : (
+                      <Sparkles className="w-4 h-4" aria-hidden="true" />
+                    )}
+                  </span>
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isUnread && (
+                        <span
+                          className="w-2 h-2 rounded-full bg-sage shrink-0"
+                          aria-label={isHi ? 'अपठित सूचना' : 'Unread notification'}
+                        />
+                      )}
+                      <p className="text-sm font-semibold text-charcoal">{n.title}</p>
+                    </div>
+                    <p className="text-xs text-muted leading-relaxed">{n.description}</p>
+                    <p className="font-mono text-[11px] text-muted tabular-nums">
+                      {formatDateReadable(n.createdAt, locale)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              {n.actionLabel && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => onNotificationAction(n)}
-                >
-                  {n.actionLabel}
-                </Button>
-              )}
-            </Card>
-          ))}
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {isUnread && onMarkRead && (
+                    <Button
+                      variant="subtle"
+                      size="sm"
+                      onClick={() => void onMarkRead(n.id)}
+                    >
+                      {isHi ? 'पढ़ा हुआ चिह्नित करें' : 'Mark read'}
+                    </Button>
+                  )}
+                  {n.actionLabel && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => onNotificationAction(n)}
+                    >
+                      {n.actionLabel}
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

@@ -10,11 +10,31 @@ export const ALLOWED_VIDEO_MIME_TYPES = [
 ] as const;
 
 export const EDITORIAL_IMAGES = {
-  heroMontessori: '/src/assets/images/hero_montessori_play_1795191199446.jpg',
-  sensoryLinen: '/src/assets/images/activity_sensory_linen_1795191186954.jpg',
-  tummyMirror: '/src/assets/images/activity_tummy_mirror_1795191186302.jpg',
-  everydayCup: '/src/assets/images/activity_everyday_cup_1795191187309.jpg',
+  heroMontessori: '/assets/editorial/hero_montessori.webp',
+  sensoryLinen: '/assets/editorial/sensory_linen.webp',
+  tummyMirror: '/assets/editorial/tummy_mirror.webp',
+  everydayCup: '/assets/editorial/everyday_cup.webp',
+  progressJourney: '/assets/editorial/progress_journey.webp',
 } as const;
+
+const LEGACY_IMAGE_MAP: Record<string, string> = {
+  '/src/assets/images/hero_montessori_play_1795191199446.jpg': EDITORIAL_IMAGES.heroMontessori,
+  '/src/assets/images/activity_sensory_linen_1795191186954.jpg': EDITORIAL_IMAGES.sensoryLinen,
+  '/src/assets/images/activity_tummy_mirror_1795191186302.jpg': EDITORIAL_IMAGES.tummyMirror,
+  '/src/assets/images/activity_everyday_cup_1795191187309.jpg': EDITORIAL_IMAGES.everydayCup,
+  '/src/assets/images/progress_journey_illustration_1795236568060.jpg':
+    EDITORIAL_IMAGES.progressJourney,
+};
+
+/**
+ * Resolves stored editorial image paths (including legacy /src/assets/images/* URLs in existing DB rows)
+ * to production-safe optimized WebP assets under /assets/editorial/.
+ */
+export function resolveEditorialImageUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+  return LEGACY_IMAGE_MAP[trimmed] ?? trimmed;
+}
 
 export const CANONICAL_AGE_GROUPS = [
   { slug: '0-3m', label: '0–3 months', minMonths: 0, maxMonths: 3, sortOrder: 1 },
@@ -66,18 +86,103 @@ export const CANONICAL_LEARNING_DOMAINS = [
   },
 ] as const;
 
+function parseCalendarDateParts(
+  isoDate: string
+): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  // Validate real calendar date (e.g. reject 2025-02-30)
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (
+    probe.getUTCFullYear() !== year ||
+    probe.getUTCMonth() !== month - 1 ||
+    probe.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return { year, month, day };
+}
+
 /**
- * Calculates age in whole completed months (clamped between 0 and 24 for LittleSteps mapping).
+ * Returns YYYY-MM-DD in the specified IANA timezone (default Asia/Kolkata for India market)
+ * so daily learning journeys align with the caregiver's calendar day rather than UTC midnight.
  */
-export function calculateAgeInMonths(dateOfBirthIso: string, referenceDate = new Date()): number {
-  const dob = new Date(dateOfBirthIso);
-  if (Number.isNaN(dob.getTime())) {
+export function getCalendarDateIso(
+  referenceDate: Date = new Date(),
+  timeZone = 'Asia/Kolkata'
+): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(referenceDate);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const d = parts.find((p) => p.type === 'day')?.value;
+    if (y && m && d) return `${y}-${m}-${d}`;
+  } catch {
+    // Fallback to local calendar parts if timezone data is unavailable
+  }
+  const y = referenceDate.getFullYear();
+  const m = String(referenceDate.getMonth() + 1).padStart(2, '0');
+  const d = String(referenceDate.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Calculates age in whole completed calendar months without UTC-midnight timezone drift.
+ * Handles month-end birthdays (e.g. Jan 31 -> Feb 28 counts as 1 completed month on Feb 28).
+ */
+export function calculateAgeInMonths(
+  dateOfBirthIso: string,
+  referenceDate: Date | string = new Date()
+): number {
+  const dobParts = parseCalendarDateParts(dateOfBirthIso);
+  if (!dobParts) {
     return 0;
   }
-  let months =
-    (referenceDate.getFullYear() - dob.getFullYear()) * 12 +
-    (referenceDate.getMonth() - dob.getMonth());
-  if (referenceDate.getDate() < dob.getDate()) {
+
+  let refYear: number;
+  let refMonth: number;
+  let refDay: number;
+
+  if (typeof referenceDate === 'string') {
+    const refParts = parseCalendarDateParts(referenceDate);
+    if (!refParts) return 0;
+    refYear = refParts.year;
+    refMonth = refParts.month;
+    refDay = refParts.day;
+  } else {
+    if (Number.isNaN(referenceDate.getTime())) return 0;
+    // Use UTC components when referenceDate was constructed from an ISO date string (e.g. new Date('2026-06-15')),
+    // and local components for wall-clock dates; for strict consistency, check if time is exact UTC midnight.
+    const isUtcDateOnly =
+      referenceDate.getUTCHours() === 0 &&
+      referenceDate.getUTCMinutes() === 0 &&
+      referenceDate.getUTCSeconds() === 0 &&
+      referenceDate.getUTCMilliseconds() === 0;
+    if (isUtcDateOnly) {
+      refYear = referenceDate.getUTCFullYear();
+      refMonth = referenceDate.getUTCMonth() + 1;
+      refDay = referenceDate.getUTCDate();
+    } else {
+      refYear = referenceDate.getFullYear();
+      refMonth = referenceDate.getMonth() + 1;
+      refDay = referenceDate.getDate();
+    }
+  }
+
+  let months = (refYear - dobParts.year) * 12 + (refMonth - dobParts.month);
+  const lastDayOfRefMonth = new Date(Date.UTC(refYear, refMonth, 0)).getUTCDate();
+  const effectiveDobDay = Math.min(dobParts.day, lastDayOfRefMonth);
+
+  if (refDay < effectiveDobDay) {
     months -= 1;
   }
   return Math.max(0, months);

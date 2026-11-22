@@ -151,7 +151,7 @@ export function PublicLayout({ currentRoute, onNavigate, children }: PublicLayou
       </header>
 
       {/* Main Content */}
-      <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
+      <main id="main-content" tabIndex={-1} className="flex-1 min-h-screen focus:outline-none">
         {children}
       </main>
 

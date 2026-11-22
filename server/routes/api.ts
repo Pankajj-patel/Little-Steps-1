@@ -856,6 +856,58 @@ export function createApiRouter(
     }
   );
 
+  // ======================== PARENT NOTIFICATIONS ========================
+
+  router.get(
+    '/notifications',
+    requireAuth,
+    requireRole('parent'),
+    (req: AuthenticatedRequest, res) => {
+      const childId = typeof req.query.childId === 'string' ? req.query.childId : undefined;
+      if (childId && !repo.findChildByIdForParent(childId, req.authUser!.id)) {
+        res.status(404).json({ error: 'Child profile not found.' });
+        return;
+      }
+      const notifications = repo.listParentNotifications(req.authUser!.id, childId);
+      const unreadCount = notifications.filter((n) => !n.isRead).length;
+      res.json({ notifications, unreadCount });
+    }
+  );
+
+  router.post(
+    '/notifications/read-all',
+    requireAuth,
+    requireRole('parent'),
+    (req: AuthenticatedRequest, res) => {
+      const childId = typeof req.body?.childId === 'string' ? req.body.childId : undefined;
+      if (childId && !repo.findChildByIdForParent(childId, req.authUser!.id)) {
+        res.status(404).json({ error: 'Child profile not found.' });
+        return;
+      }
+      const markedCount = repo.markAllParentNotificationsRead(req.authUser!.id, childId);
+      res.json({ ok: true, markedCount });
+    }
+  );
+
+  router.post(
+    '/notifications/:id/read',
+    requireAuth,
+    requireRole('parent'),
+    (req: AuthenticatedRequest, res) => {
+      const notificationId = req.params.id?.trim();
+      if (!notificationId || notificationId.length > 160) {
+        res.status(400).json({ error: 'Invalid notification identifier.' });
+        return;
+      }
+      const marked = repo.markParentNotificationRead(req.authUser!.id, notificationId);
+      if (!marked) {
+        res.status(404).json({ error: 'Notification not found.' });
+        return;
+      }
+      res.json({ ok: true });
+    }
+  );
+
   // ======================== PRIVATE VIDEO UPLOAD, SIGNED STREAM & DELETE ========================
 
   router.get('/submissions/storage-status', requireAuth, (_req, res) => {
@@ -962,41 +1014,55 @@ export function createApiRouter(
           return;
         }
 
+        if (repo.hasRecentPendingSubmission(child.id, activity.id, 45)) {
+          res.status(409).json({
+            error:
+              'A practice clip for this activity was just uploaded and is already queued for review. Please wait a moment before uploading another clip.',
+          });
+          return;
+        }
+
         const ext = normalizedMime === 'video/mp4' ? 'mp4' : normalizedMime === 'video/quicktime' ? 'mov' : 'webm';
         const storageKey = await storage.saveBuffer(file.buffer, ext);
         const storageStatus = storage.getStorageStatus();
 
-        const consentRecord = repo.recordUserConsent(
-          req.authUser!.id,
-          'video_processing',
-          hashIp(req.ip || 'unknown')
-        );
+        try {
+          const consentRecord = repo.recordUserConsent(
+            req.authUser!.id,
+            'video_processing',
+            hashIp(req.ip || 'unknown')
+          );
 
-        const completion = repo.upsertActivityCompletion({
-          childId: child.id,
-          activityId: activity.id,
-          status: 'submitted_for_review',
-          caregiverNotes: safeNotes,
-        });
+          const completion = repo.upsertActivityCompletion({
+            childId: child.id,
+            activityId: activity.id,
+            status: 'submitted_for_review',
+            caregiverNotes: safeNotes,
+          });
 
-        const expiresAt = new Date(Date.now() + RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
-        const submission = repo.createVideoSubmission({
-          completionId: completion.id,
-          parentUserId: req.authUser!.id,
-          childId: child.id,
-          activityId: activity.id,
-          activityVersion: activity.version,
-          storageKey,
-          storageProvider: storageStatus.mode,
-          consentRecordId: consentRecord.id,
-          mimeType: normalizedMime,
-          fileSizeBytes: file.size,
-          durationSeconds: parsedDuration,
-          caregiverNotes: safeNotes,
-          expiresAt,
-        });
+          const expiresAt = new Date(Date.now() + RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+          const submission = repo.createVideoSubmission({
+            completionId: completion.id,
+            parentUserId: req.authUser!.id,
+            childId: child.id,
+            activityId: activity.id,
+            activityVersion: activity.version,
+            storageKey,
+            storageProvider: storageStatus.mode,
+            consentRecordId: consentRecord.id,
+            mimeType: normalizedMime,
+            fileSizeBytes: file.size,
+            durationSeconds: parsedDuration,
+            caregiverNotes: safeNotes,
+            expiresAt,
+          });
 
-        res.status(201).json({ submission, storageStatus });
+          res.status(201).json({ submission, storageStatus });
+        } catch (dbErr) {
+          // Ensure private video file is never orphaned on disk if database persistence fails
+          await storage.deleteObject(storageKey).catch(() => false);
+          throw dbErr;
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unable to save video submission.';
         res.status(500).json({ error: message });
@@ -1015,7 +1081,9 @@ export function createApiRouter(
         return;
       }
 
-      // Strict RBAC ownership / assignment enforcement
+      // Strict RBAC ownership, reviewer age-group scope, and assignment enforcement
+      const reviewerOutOfScope =
+        user.role === 'reviewer' && !repo.isSubmissionWithinReviewerScope(user.id, sub.id);
       const reviewerAssignedElsewhere =
         user.role === 'reviewer' &&
         Boolean(sub.assigned_reviewer_id) &&
@@ -1024,14 +1092,16 @@ export function createApiRouter(
 
       const allowed =
         (user.role === 'parent' && sub.parent_user_id === user.id) ||
-        (user.role === 'reviewer' && !reviewerAssignedElsewhere) ||
+        (user.role === 'reviewer' && !reviewerAssignedElsewhere && !reviewerOutOfScope) ||
         user.role === 'admin';
 
       if (!allowed) {
         res.status(403).json({
-          error: reviewerAssignedElsewhere
-            ? 'This submission is actively assigned to another reviewer.'
-            : 'Not authorized to access this video.',
+          error: reviewerOutOfScope
+            ? 'You are not assigned to review submissions for this age group.'
+            : reviewerAssignedElsewhere
+              ? 'This submission is actively assigned to another reviewer.'
+              : 'Not authorized to access this video.',
         });
         return;
       }
@@ -1161,12 +1231,19 @@ export function createApiRouter(
       const status = typeof req.query.status === 'string' ? req.query.status : 'all';
       const ageGroupSlug =
         typeof req.query.ageGroupSlug === 'string' ? req.query.ageGroupSlug : 'all';
-      const summary = repo.getReviewerDashboardSummary();
+      const mineOnly = req.query.mine === 'true' && req.authUser!.role === 'reviewer';
+      const allowedAgeGroupSlugs =
+        req.authUser!.role === 'reviewer'
+          ? repo.getReviewerAllowedAgeGroupSlugs(req.authUser!.id)
+          : undefined;
+      const summary = repo.getReviewerDashboardSummary(allowedAgeGroupSlugs);
       const queue = repo.listReviewerQueue({
         status: status as 'queued' | 'in_review' | 'reviewed' | 'resubmit_requested' | 'all',
         ageGroupSlug,
+        allowedAgeGroupSlugs,
+        assignedReviewerId: mineOnly ? req.authUser!.id : undefined,
       });
-      res.json({ summary, queue });
+      res.json({ summary, queue, allowedAgeGroupSlugs: allowedAgeGroupSlugs ?? [] });
     }
   );
 
@@ -1175,6 +1252,12 @@ export function createApiRouter(
     requireAuth,
     requireRole('reviewer'),
     (req: AuthenticatedRequest, res) => {
+      if (!repo.isSubmissionWithinReviewerScope(req.authUser!.id, req.params.id)) {
+        res.status(403).json({
+          error: 'You are not assigned to review submissions for this age group.',
+        });
+        return;
+      }
       const claimed = repo.claimSubmissionForReviewer(req.params.id, req.authUser!.id);
       if (!claimed) {
         res.status(409).json({
@@ -1195,6 +1278,15 @@ export function createApiRouter(
       const rawSub = repo.findSubmissionRawById(req.params.id);
       if (!rawSub) {
         res.status(404).json({ error: 'Submission not found.' });
+        return;
+      }
+      if (
+        req.authUser!.role === 'reviewer' &&
+        !repo.isSubmissionWithinReviewerScope(req.authUser!.id, rawSub.id)
+      ) {
+        res.status(403).json({
+          error: 'You are not assigned to review submissions for this age group.',
+        });
         return;
       }
       if (
@@ -1225,6 +1317,12 @@ export function createApiRouter(
       const rawSub = repo.findSubmissionRawById(req.params.id);
       if (!rawSub) {
         res.status(404).json({ error: 'Submission not found.' });
+        return;
+      }
+      if (!repo.isSubmissionWithinReviewerScope(req.authUser!.id, rawSub.id)) {
+        res.status(403).json({
+          error: 'You are not assigned to review submissions for this age group.',
+        });
         return;
       }
       if (
@@ -1271,6 +1369,12 @@ export function createApiRouter(
       const rawSub = repo.findSubmissionRawById(req.params.id);
       if (!rawSub) {
         res.status(404).json({ error: 'Submission not found.' });
+        return;
+      }
+      if (!repo.isSubmissionWithinReviewerScope(req.authUser!.id, rawSub.id)) {
+        res.status(403).json({
+          error: 'You are not assigned to review submissions for this age group.',
+        });
         return;
       }
       if (

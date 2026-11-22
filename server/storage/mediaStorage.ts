@@ -16,6 +16,7 @@ export interface MediaStorageAdapter {
   openReadStream(storageKey: string, start?: number, end?: number): fs.ReadStream;
   deleteObject(storageKey: string): Promise<boolean>;
   getStorageStatus(): VideoStorageStatusResponse;
+  getRootDir(): string;
 }
 
 /**
@@ -45,6 +46,10 @@ export class LocalPrivateMediaStorage implements MediaStorageAdapter {
       fs.mkdirSync(fallbackDir, { recursive: true });
       this.rootDir = fallbackDir;
     }
+  }
+
+  getRootDir(): string {
+    return this.rootDir;
   }
 
   private resolveSafePath(storageKey: string): string {

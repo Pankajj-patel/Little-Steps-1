@@ -235,16 +235,27 @@ export function runMigrations(db: Database.Database): void {
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
 
+    CREATE TABLE IF NOT EXISTS notification_reads (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      notification_id TEXT NOT NULL,
+      read_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      PRIMARY KEY (user_id, notification_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_children_parent ON children(parent_user_id);
     CREATE INDEX IF NOT EXISTS idx_activities_age_domain ON activities(age_group_id, domain_id, status);
     CREATE INDEX IF NOT EXISTS idx_activity_versions_act ON activity_versions(activity_id, version_number DESC);
+    CREATE INDEX IF NOT EXISTS idx_completions_child_date ON activity_completions(child_id, plan_date DESC);
+    CREATE INDEX IF NOT EXISTS idx_completions_child_act ON activity_completions(child_id, activity_id, status);
     CREATE INDEX IF NOT EXISTS idx_submissions_queue ON video_submissions(review_status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_submissions_child_act ON video_submissions(child_id, activity_id, review_status);
     CREATE INDEX IF NOT EXISTS idx_submissions_expiry ON video_submissions(expires_at, deleted_at);
     CREATE INDEX IF NOT EXISTS idx_audit_created ON media_access_audit_logs(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_logs(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_review_history_sub ON review_audit_history(submission_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_auth_tokens_hash ON auth_tokens(token_hash, token_type);
     CREATE INDEX IF NOT EXISTS idx_profile_photos_owner ON profile_photos(owner_user_id);
+    CREATE INDEX IF NOT EXISTS idx_notification_reads_user ON notification_reads(user_id, read_at DESC);
   `);
 
   // Safe idempotent column migrations for existing databases

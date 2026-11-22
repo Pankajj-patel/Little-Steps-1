@@ -33,13 +33,13 @@ Use `.env.example` as the canonical template. Inject all secrets via a managed S
 ## 2. Database Migration Plan (SQLite Prototype -> Managed PostgreSQL)
 
 ### Current Prototype State
-- Schema lives in `server/db/schema.ts` (16 normalized tables with foreign keys, CHECK constraints, and indexes).
-- Safe idempotent column migrations run automatically at startup (`ensureColumn`).
+- Schema lives in `server/db/schema.ts` (17 normalized tables including `notification_reads`, foreign keys, CHECK constraints, and composite indexes for daily journeys, completions, submissions, and notifications).
+- Safe idempotent column and index migrations run automatically at startup (`ensureColumn` and `CREATE INDEX IF NOT EXISTS`).
 
 ### Production Migration Sequence
 1. **Provision Managed PostgreSQL 16** in an Indian region (`asia-south1` Mumbai or `ap-south-1` Mumbai) with Private VPC peering, TLS enforced (`sslmode=verify-full`), and automated backups.
 2. **Adopt Versioned Migrations (Drizzle Kit or Prisma Migrate)**:
-   - Port the 16 tables in `server/db/schema.ts` to numbered SQL migrations (`0001_initial_schema.sql`, etc.).
+   - Port the 17 tables in `server/db/schema.ts` to numbered SQL migrations (`0001_initial_schema.sql`, etc.).
    - Convert SQLite `INTEGER` booleans (`is_active`, `is_assessable`) to PostgreSQL `BOOLEAN` and `TEXT` ISO timestamps to `TIMESTAMPTZ`.
    - Enforce `ON DELETE CASCADE` on `children -> activity_completions / video_submissions` and preserve `media_access_audit_logs` without cascade deletion so audit trails remain immutable.
 3. **Seed Only Canonical Reference Data in Production**:
@@ -115,7 +115,7 @@ The prototype uses `LocalPrivateMediaStorage` (`./private_media`), which explici
 # 1. Install production and build dependencies
 npm ci
 
-# 2. Typecheck and run automated test suite
+# 2. Typecheck and run automated test suites
 npm run lint
 npm test
 
@@ -127,13 +127,16 @@ npm run build
 
 # 5. Start production server (serves /api/v1 and static /dist on PORT=3000)
 NODE_ENV=production PORT=3000 npm start
+
+# 6. Run Playwright browser E2E, responsive, a11y, and Web Vitals check against running server
+npm run test:e2e
 ```
 
 ### Post-Deploy Smoke Checks
-1. `curl -fsS https://<domain>/api/v1/health` returns `200 OK` with `Cache-Control: private, no-store, max-age=0` and `X-Content-Type-Options: nosniff`.
+1. `curl -fsS https://<domain>/api/v1/health` returns `200 OK` with `Cache-Control: private, no-store, max-age=0`, `Content-Security-Policy`, and `X-Content-Type-Options: nosniff`.
 2. Verify `POST /api/v1/auth/login` without `X-Requested-With` and cross-origin `Origin` returns `403`.
 3. Verify `GET /api/v1/submissions/storage-status` reports `mode: "production_object_storage"` (once cloud adapter is live).
-4. Verify a test video upload streams via 5-minute signed URL (`206 Partial Content`) and is permanently deleted after clicking "Delete Video Now".
+4. Verify a test video upload streams via 5-minute signed URL (`206 Partial Content`), blocks out-of-scope reviewers (`403`), and is permanently deleted after clicking "Delete Video Now".
 
 ---
 

@@ -21,7 +21,9 @@ import {
   Layers,
   LayoutDashboard,
   Lock,
+  LogOut,
   Menu,
+  Palette,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -3406,11 +3408,15 @@ export function AdminAuditLogsModule() {
 export interface AdminConsoleViewProps {
   activeTab?: AdminTab;
   onTabChange?: (tab: AdminTab) => void;
+  onLogout?: () => Promise<void>;
+  onOpenDesignSystem?: () => void;
 }
 
 export function AdminConsoleView({
   activeTab = 'dashboard',
   onTabChange,
+  onLogout,
+  onOpenDesignSystem,
 }: AdminConsoleViewProps) {
   const { ageGroups, learningDomains, user } = useAuth();
 
@@ -3464,36 +3470,52 @@ export function AdminConsoleView({
   ];
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex flex-col md:flex-row bg-offwhite">
-      <div className="md:hidden p-4 border-b border-cream-accent/60 bg-white flex items-center justify-between sticky top-0 z-20">
+    <div className="min-h-screen flex flex-col md:flex-row bg-offwhite">
+      <div className="md:hidden p-4 border-b border-border bg-surface flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-2.5">
           <BrandLogo size="sm" />
-          <span className="font-serif font-bold text-charcoal">LittleSteps Admin</span>
+          <span className="font-display font-semibold text-charcoal">LittleSteps Admin</span>
         </div>
-        <Button
-          variant="subtle"
-          size="sm"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Toggle Navigation Menu"
-        >
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </Button>
+        <div className="flex items-center gap-2">
+          {onLogout && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void onLogout()}
+              leftIcon={<LogOut className="w-4 h-4" />}
+            >
+              Sign Out
+            </Button>
+          )}
+          <Button
+            variant="subtle"
+            size="sm"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle Navigation Menu"
+            aria-expanded={mobileMenuOpen}
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </Button>
+        </div>
       </div>
 
       <aside
+        aria-label="Admin navigation"
         className={`${
-          mobileMenuOpen ? 'block' : 'hidden'
-        } md:block w-full md:w-64 bg-white border-r border-cream-accent/70 p-4 md:min-h-[calc(100vh-4rem)] shrink-0 z-10`}
+          mobileMenuOpen ? 'flex' : 'hidden'
+        } md:flex flex-col w-full md:w-64 bg-surface border-r border-border p-4 md:sticky md:top-0 md:h-[100dvh] shrink-0 z-10`}
       >
-        <div className="hidden md:flex items-center gap-2.5 px-3 py-3 mb-4 border-b border-cream-accent/50">
+        <div className="hidden md:flex items-center gap-2.5 px-3 py-3 mb-4 border-b border-border">
           <BrandLogo size="md" />
           <div>
-            <h1 className="text-sm font-serif font-bold text-charcoal leading-tight">Admin Console</h1>
+            <h1 className="text-sm font-display font-semibold text-charcoal leading-tight">
+              Admin Console
+            </h1>
             <p className="text-[11px] text-muted">Platform Management</p>
           </div>
         </div>
 
-        <nav className="space-y-1">
+        <nav className="space-y-1 flex-1 overflow-y-auto" aria-label="Admin modules">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = currentTab === item.id;
@@ -3501,15 +3523,16 @@ export function AdminConsoleView({
               <button
                 key={item.id}
                 type="button"
+                aria-current={active ? 'page' : undefined}
                 onClick={() => {
                   setCurrentTab(item.id);
                   onTabChange?.(item.id);
                   setMobileMenuOpen(false);
                 }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
+                className={`w-full min-h-[44px] flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   active
                     ? 'bg-sage text-white shadow-sm'
-                    : 'text-charcoal hover:bg-cream/40 hover:text-charcoal'
+                    : 'text-charcoal hover:bg-cream/60 hover:text-charcoal'
                 }`}
               >
                 <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-white' : 'text-muted'}`} />
@@ -3519,15 +3542,41 @@ export function AdminConsoleView({
           })}
         </nav>
 
-        <div className="mt-8 pt-4 border-t border-cream-accent/60 px-3 text-[11px] text-muted space-y-1">
-          <p>
-            Logged in as: <strong className="text-charcoal">{user?.fullName}</strong>
-          </p>
-          <p className="text-sage font-medium">Administrator (Full Access)</p>
+        <div className="mt-4 pt-4 border-t border-border space-y-2 shrink-0">
+          <div className="px-3 text-[11px] text-muted space-y-0.5">
+            <p className="truncate">
+              Signed in as: <strong className="text-charcoal">{user?.fullName}</strong>
+            </p>
+            <p className="text-sage font-medium">Administrator (Full Access)</p>
+          </div>
+          {onOpenDesignSystem && (
+            <button
+              type="button"
+              onClick={onOpenDesignSystem}
+              className="w-full min-h-[44px] flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-muted hover:bg-cream hover:text-charcoal transition-colors cursor-pointer"
+            >
+              <Palette className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span>Design System</span>
+            </button>
+          )}
+          {onLogout && (
+            <button
+              type="button"
+              onClick={() => void onLogout()}
+              className="w-full min-h-[44px] flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-muted hover:bg-cream hover:text-charcoal transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span>Sign Out</span>
+            </button>
+          )}
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 pb-24 max-w-7xl mx-auto w-full">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 pb-24 max-w-7xl mx-auto w-full focus:outline-none"
+      >
         {currentTab === 'dashboard' && (
           <div className="space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-cream/30 p-6 rounded-2xl border border-cream-accent/60">

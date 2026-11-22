@@ -6,15 +6,19 @@ import {
   ALLOWED_VIDEO_MIME_TYPES,
   CANONICAL_AGE_GROUPS,
   CANONICAL_LEARNING_DOMAINS,
+  EDITORIAL_IMAGES,
   MAX_VIDEO_DURATION_SECONDS,
   MAX_VIDEO_SIZE_BYTES,
   RETENTION_DAYS,
   calculateAgeInMonths,
   calculateInstructionMatchScore,
   formatDaysUntilExpiry,
+  getCalendarDateIso,
   getRubricMultiplier,
   resolveAgeGroupSlug,
+  resolveEditorialImageUrl,
 } from '../../src/shared/domain';
+import { evaluateCaregiverRubric } from '../../server/services/evaluationService';
 import {
   generateOneTimeToken,
   hashIp,
@@ -40,18 +44,36 @@ describe('Critical Business Rules — src/shared/domain.ts', () => {
     expect(CANONICAL_LEARNING_DOMAINS).toHaveLength(6);
   });
 
-  test('calculateAgeInMonths computes exact whole months and handles edge cases', () => {
-    const ref = new Date('2026-11-21T00:00:00Z');
+  test('calculateAgeInMonths computes exact whole months and handles timezone & month-end edge cases', () => {
+    const ref = new Date(2026, 10, 21, 12, 0, 0);
     expect(calculateAgeInMonths('2026-11-21', ref)).toBe(0);
     expect(calculateAgeInMonths('2026-08-21', ref)).toBe(3);
     // Day of month not yet reached -> still 2 completed months
     expect(calculateAgeInMonths('2026-08-25', ref)).toBe(2);
     expect(calculateAgeInMonths('2025-11-21', ref)).toBe(12);
     expect(calculateAgeInMonths('2024-11-21', ref)).toBe(24);
+    // Month-end birthday: Jan 31 -> Feb 28 (non-leap year) completes 1 month
+    expect(calculateAgeInMonths('2026-01-31', new Date(2026, 1, 28, 12, 0, 0))).toBe(1);
+    // Leap-year birthday: Feb 29 2024 -> Feb 28 2025 completes 12 months
+    expect(calculateAgeInMonths('2024-02-29', new Date(2025, 1, 28, 12, 0, 0))).toBe(12);
     // Future date clamps to 0
     expect(calculateAgeInMonths('2027-02-01', ref)).toBe(0);
     // Invalid date returns 0 safely
     expect(calculateAgeInMonths('not-a-date', ref)).toBe(0);
+  });
+
+  test('getCalendarDateIso and resolveEditorialImageUrl handle dates and legacy image paths safely', () => {
+    expect(getCalendarDateIso(new Date('2026-11-21T01:00:00Z'), 'Asia/Kolkata')).toBe('2026-11-21');
+    expect(getCalendarDateIso(new Date('2026-11-21T20:00:00Z'), 'Asia/Kolkata')).toBe('2026-11-22');
+    expect(
+      resolveEditorialImageUrl('/src/assets/images/activity_sensory_linen_1795191186954.jpg')
+    ).toBe(EDITORIAL_IMAGES.sensoryLinen);
+    expect(
+      resolveEditorialImageUrl('/src/assets/images/progress_journey_illustration_1795236568060.jpg')
+    ).toBe(EDITORIAL_IMAGES.progressJourney);
+    expect(resolveEditorialImageUrl('/assets/editorial/tummy_mirror.webp')).toBe(
+      '/assets/editorial/tummy_mirror.webp'
+    );
   });
 
   test('resolveAgeGroupSlug maps all 8 canonical 3-month bands accurately', () => {
@@ -148,6 +170,76 @@ describe('Critical Business Rules — src/shared/domain.ts', () => {
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     expect(formatDaysUntilExpiry(inTenDays)).toBeGreaterThanOrEqual(10);
     expect(formatDaysUntilExpiry(yesterday)).toBe(0);
+  });
+});
+
+describe('Authoritative Evaluation Service — server/services/evaluationService.ts', () => {
+  const sampleCriteria = [
+    { id: 'c1', activityId: 'act_sample', criterionOrder: 1, label: 'Safe setup', description: 'Uncluttered safe floor mat', weightPoints: 40 },
+    { id: 'c2', activityId: 'act_sample', criterionOrder: 2, label: 'Calm pacing', description: 'Follows baby cues', weightPoints: 35 },
+    { id: 'c3', activityId: 'act_sample', criterionOrder: 3, label: 'Warm voice', description: 'Speaks softly', weightPoints: 25 },
+  ];
+
+  test('computes server-authoritative weighted score and rejects invalid or incomplete submissions', () => {
+    const ok = evaluateCaregiverRubric({
+      mode: 'publish',
+      reviewerUserId: 'rev_1',
+      criteria: sampleCriteria,
+      criterionRatings: [
+        { criterionId: 'c1', achievedLevel: 'met' },
+        { criterionId: 'c2', achievedLevel: 'partially_met' },
+        { criterionId: 'c3', achievedLevel: 'not_assessable', explanation: 'Audio muted briefly' },
+      ],
+    });
+    expect(ok.isAssessable).toBe(true);
+    expect(ok.applicableTotal).toBe(75);
+    expect(ok.earnedTotal).toBe(57.5);
+    expect(ok.scorePct).toBe(77);
+
+    // Forced not_assessable never exposes a percentage
+    const forced = evaluateCaregiverRubric({
+      mode: 'not_assessable',
+      reviewerUserId: 'rev_1',
+      criteria: sampleCriteria,
+      criterionRatings: sampleCriteria.map((c) => ({ criterionId: c.id, achievedLevel: 'met' })),
+      notAssessableReason: 'Camera angle obscured mat setup.',
+    });
+    expect(forced.isAssessable).toBe(false);
+    expect(forced.scorePct).toBeNull();
+
+    // Rejects missing reviewer identity
+    expect(() =>
+      evaluateCaregiverRubric({
+        mode: 'publish',
+        reviewerUserId: '',
+        criteria: sampleCriteria,
+        criterionRatings: sampleCriteria.map((c) => ({ criterionId: c.id, achievedLevel: 'met' })),
+      })
+    ).toThrow();
+
+    // Rejects duplicate criterion ratings
+    expect(() =>
+      evaluateCaregiverRubric({
+        mode: 'publish',
+        reviewerUserId: 'rev_1',
+        criteria: sampleCriteria,
+        criterionRatings: [
+          { criterionId: 'c1', achievedLevel: 'met' },
+          { criterionId: 'c1', achievedLevel: 'met' },
+          { criterionId: 'c2', achievedLevel: 'met' },
+        ],
+      })
+    ).toThrow();
+
+    // Rejects missing criterion on publish
+    expect(() =>
+      evaluateCaregiverRubric({
+        mode: 'publish',
+        reviewerUserId: 'rev_1',
+        criteria: sampleCriteria,
+        criterionRatings: [{ criterionId: 'c1', achievedLevel: 'met' }],
+      })
+    ).toThrow();
   });
 });
 

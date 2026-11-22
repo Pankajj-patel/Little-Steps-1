@@ -167,6 +167,13 @@ export async function runSuites() {
       } catch (err: any) {
         console.error(`    ✗ ${t.name}`);
         console.error(`      ${err.message}`);
+        if (typeof err?.stack === 'string') {
+          const frame = err.stack
+            .split('\n')
+            .slice(1)
+            .find((line: string) => line.includes('/tests/') && !line.includes('bun-test-shim'));
+          if (frame) console.error(`      ${frame.trim()}`);
+        }
         failed++;
       }
     }

@@ -5,10 +5,22 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   helperText?: string;
   error?: string;
   leadingIcon?: React.ReactNode;
+  optionalLabel?: string;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, helperText, error, leadingIcon, id, required, disabled, className = '', ...rest },
+  {
+    label,
+    helperText,
+    error,
+    leadingIcon,
+    optionalLabel,
+    id,
+    required,
+    disabled,
+    className = '',
+    ...rest
+  },
   ref
 ) {
   const autoId = useId();
@@ -24,11 +36,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
     <div className="space-y-1.5 w-full">
       <label htmlFor={inputId} className="block text-sm font-medium text-charcoal">
         {label}
-        {required && (
+        {required ? (
           <span className="text-danger ml-0.5" aria-hidden="true">
             *
           </span>
-        )}
+        ) : optionalLabel ? (
+          <span className="text-xs font-normal text-muted ml-1.5">({optionalLabel})</span>
+        ) : null}
       </label>
 
       <div className="relative">

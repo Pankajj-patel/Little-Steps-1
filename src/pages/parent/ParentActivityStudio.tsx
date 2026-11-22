@@ -185,9 +185,33 @@ export function ParentActivityStudio({
         </p>
       </div>
 
-      {/* Interactive Step-Paced Instructional Guide */}
+      {/* Section 2: Learning Objective ("Why this activity helps") */}
+      <Card tone="sage" className="space-y-2">
+        <h2 className="font-display text-base sm:text-lg font-semibold text-charcoal">
+          {isHi ? 'यह गतिविधि क्यों सहायक है' : 'Why this activity helps'}
+        </h2>
+        {displayActivity.objectives.length > 0 ? (
+          <ul className="space-y-1.5 text-sm text-charcoal/90">
+            {displayActivity.objectives.map((obj, idx) => (
+              <li key={idx} className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-sage shrink-0 mt-0.5" aria-hidden="true" />
+                <span>{obj}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-charcoal/90 leading-relaxed">
+            {isHi
+              ? `यह शांत गतिविधि ${displayActivity.ageGroupLabel} चरण में ${displayActivity.domainName} को सहज और स्नेहपूर्ण खेल के माध्यम से प्रोत्साहित करती है।`
+              : `This calm activity gently nurtures ${displayActivity.domainName.toLowerCase()} through unhurried everyday interaction suited to ${displayActivity.ageGroupLabel}.`}
+          </p>
+        )}
+      </Card>
+
+      {/* Section 3: Instructional Video / Interactive Step-Paced Guide */}
       <InstructionalGuidePlayer
         posterUrl={displayActivity.instructionalPosterUrl}
+        videoUrl={displayActivity.instructionalVideoUrl}
         activityTitle={displayActivity.title}
         steps={displayActivity.steps}
         locale={locale}
@@ -356,6 +380,7 @@ export function ParentActivityStudio({
             activityVersion={activity.version}
             initialMode={uploaderMode}
             existingSubmission={latestSubmission}
+            locale={locale}
             onSubmitted={handleVideoSubmitted}
             onCancel={() => setUploaderMode(null)}
           />

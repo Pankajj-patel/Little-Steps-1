@@ -14,7 +14,6 @@ import {
   Trash2,
   Video,
 } from 'lucide-react';
-import progressJourneyIllustration from '../../assets/images/progress_journey_illustration_1795236568060.jpg';
 import { SecureVideoPlayer } from '../../components/SecureVideoPlayer';
 import {
   Button,
@@ -29,7 +28,7 @@ import {
   useToast,
 } from '../../design-system';
 import { api } from '../../lib/api';
-import { formatDaysUntilExpiry } from '../../shared/domain';
+import { EDITORIAL_IMAGES, formatDaysUntilExpiry } from '../../shared/domain';
 import { localizeActivityTitleById } from '../../shared/hindiContent';
 import { formatDateReadable, localizeAgeGroupLabel, localizeDomainName } from '../../shared/i18n';
 import type {
@@ -402,8 +401,10 @@ export function ProgressDashboardSection({
           <div className="lg:col-span-5 bg-cream/60 border-t lg:border-t-0 lg:border-l border-border min-h-[220px] relative">
             {!illustrationFailed ? (
               <img
-                src={progressJourneyIllustration}
+                src={EDITORIAL_IMAGES.progressJourney}
                 alt="Warm watercolor illustration of a mother and baby exploring wooden toys together on a cotton play mat"
+                loading="lazy"
+                decoding="async"
                 referrerPolicy="no-referrer"
                 onError={() => setIllustrationFailed(true)}
                 className="w-full h-full object-cover"

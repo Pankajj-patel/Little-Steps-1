@@ -27,6 +27,7 @@ import type {
   LocaleCode,
   MediaAuditAction,
   MediaAuditLogItem,
+  ParentNotificationItem,
   ParentProgressOverviewResponse,
   QueuePriority,
   ReviewAuditAction,
@@ -49,10 +50,10 @@ import type {
 } from '../../src/shared/types.ts';
 import {
   calculateAgeInMonths,
-  calculateInstructionMatchScore,
-  getRubricMultiplier,
+  getCalendarDateIso,
   resolveAgeGroupSlug,
 } from '../../src/shared/domain.ts';
+import { evaluateCaregiverRubric } from '../services/evaluationService.ts';
 
 interface UserRow {
   id: string;
@@ -1702,7 +1703,7 @@ export class LittleStepsRepository {
       weekNumber,
       totalStageWeeks,
       stageLabel: child.ageGroupLabel,
-      todayDateIso: new Date().toISOString().slice(0, 10),
+      todayDateIso: getCalendarDateIso(),
     };
   }
 
@@ -2316,52 +2317,73 @@ export class LittleStepsRepository {
     };
   }
 
+  private getReadNotificationIds(userId: string): Set<string> {
+    const rows = this.db
+      .prepare('SELECT notification_id FROM notification_reads WHERE user_id = ?')
+      .all(userId) as Array<{ notification_id: string }>;
+    return new Set(rows.map((r) => r.notification_id));
+  }
+
   private buildParentNotifications(
     parent: UserProfile | null,
     child: ChildProfile,
     submissions: VideoSubmissionSummary[],
     todayItems: JourneyActivityItem[]
-  ) {
-    const notifications: Array<{
-      id: string;
-      kind: 'review_ready' | 'submission_queued' | 'email_verify' | 'daily_rhythm';
-      title: string;
-      description: string;
-      createdAt: string;
-      actionLabel?: string;
-      targetSection?: 'today' | 'my-plan' | 'activities' | 'progress' | 'verify-email';
-    }> = [];
+  ): ParentNotificationItem[] {
+    const readIds = parent ? this.getReadNotificationIds(parent.id) : new Set<string>();
+    const notifications: ParentNotificationItem[] = [];
 
     if (parent && !parent.emailVerifiedAt) {
+      const id = 'notif_verify_email';
       notifications.push({
-        id: 'notif_verify_email',
+        id,
         kind: 'email_verify',
         title: 'Confirm your email address',
         description: `Verify ${parent.email} so you can recover your account safely anytime.`,
         createdAt: parent.createdAt,
+        isRead: readIds.has(id),
         actionLabel: 'Verify Email',
         targetSection: 'verify-email',
       });
     }
 
-    submissions.slice(0, 4).forEach((sub) => {
+    submissions.slice(0, 6).forEach((sub) => {
       if (sub.review) {
+        const id = `notif_rev_${sub.id}_v${sub.review.version}`;
         const scoreSummary =
           sub.review.isAssessable && sub.review.instructionMatchScorePct !== null
             ? `Instruction-match ${sub.review.instructionMatchScorePct}% · Includes positive observations and gentle tips from ${sub.review.reviewerName}.`
             : `Marked Not Assessable · ${sub.review.reviewerName} left a clear explanation and gentle guidance.`;
         notifications.push({
-          id: `notif_rev_${sub.id}`,
+          id,
           kind: 'review_ready',
           title: `Caregiver feedback ready for ${sub.activityTitle}`,
           description: scoreSummary,
           createdAt: sub.review.submittedAt,
+          isRead: readIds.has(id),
           actionLabel: 'View Feedback',
           targetSection: 'progress',
+          activityId: sub.activityId,
+        });
+      } else if (sub.reviewStatus === 'resubmit_requested') {
+        const id = `notif_resub_${sub.id}`;
+        notifications.push({
+          id,
+          kind: 'changes_requested',
+          title: `Updated clip requested for ${sub.activityTitle}`,
+          description:
+            sub.changeRequestNote ||
+            'Your reviewer shared gentle recording guidance so they can give clearer feedback.',
+          createdAt: sub.createdAt,
+          isRead: readIds.has(id),
+          actionLabel: 'Open Activity',
+          targetSection: 'today',
+          activityId: sub.activityId,
         });
       } else if (sub.reviewStatus === 'queued' || sub.reviewStatus === 'in_review') {
+        const id = `notif_q_${sub.id}`;
         notifications.push({
-          id: `notif_q_${sub.id}`,
+          id,
           kind: 'submission_queued',
           title: `Practice clip received for ${sub.activityTitle}`,
           description:
@@ -2369,8 +2391,10 @@ export class LittleStepsRepository {
               ? 'A caregiver coach is reviewing your clip privately.'
               : 'Stored privately in your vault and queued for coaching feedback.',
           createdAt: sub.createdAt,
+          isRead: readIds.has(id),
           actionLabel: 'Check Status',
           targetSection: 'progress',
+          activityId: sub.activityId,
         });
       }
     });
@@ -2380,18 +2404,107 @@ export class LittleStepsRepository {
     ).length;
 
     if (remaining > 0) {
+      const todayKey = getCalendarDateIso();
+      const id = `notif_today_${child.id}_${todayKey}`;
       notifications.push({
-        id: `notif_today_${child.id}`,
+        id,
         kind: 'daily_rhythm',
         title: `${remaining} gentle ${remaining === 1 ? 'activity' : 'activities'} ready for ${child.displayName}`,
         description: `Matched to the ${child.ageGroupLabel} stage whenever your little one is rested and alert.`,
         createdAt: new Date().toISOString(),
+        isRead: readIds.has(id),
         actionLabel: 'View Today',
         targetSection: 'today',
       });
     }
 
     return notifications;
+  }
+
+  listParentNotifications(parentUserId: string, childId?: string): ParentNotificationItem[] {
+    const children = this.listChildrenByParent(parentUserId);
+    const targetChild = childId ? children.find((c) => c.id === childId) : children[0];
+    if (!targetChild) {
+      const parent = this.findUserById(parentUserId);
+      const readIds = this.getReadNotificationIds(parentUserId);
+      if (parent && !parent.emailVerifiedAt) {
+        const id = 'notif_verify_email';
+        return [
+          {
+            id,
+            kind: 'email_verify',
+            title: 'Confirm your email address',
+            description: `Verify ${parent.email} so you can recover your account safely anytime.`,
+            createdAt: parent.createdAt,
+            isRead: readIds.has(id),
+            actionLabel: 'Verify Email',
+            targetSection: 'verify-email',
+          },
+        ];
+      }
+      return [];
+    }
+    const journey = this.getJourneyForChild(targetChild);
+    return journey?.notifications ?? [];
+  }
+
+  markParentNotificationRead(parentUserId: string, notificationId: string): boolean {
+    const ownedNotifications = this.listParentNotifications(parentUserId);
+    const existsForParent = ownedNotifications.some((n) => n.id === notificationId);
+    if (!existsForParent) {
+      // Also check across all children of this parent
+      const children = this.listChildrenByParent(parentUserId);
+      const foundInAnyChild = children.some((c) =>
+        this.listParentNotifications(parentUserId, c.id).some((n) => n.id === notificationId)
+      );
+      if (!foundInAnyChild) {
+        return false;
+      }
+    }
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO notification_reads (user_id, notification_id, read_at)
+         VALUES (?, ?, ?)`
+      )
+      .run(parentUserId, notificationId, new Date().toISOString());
+    return true;
+  }
+
+  markAllParentNotificationsRead(parentUserId: string, childId?: string): number {
+    const notifications = this.listParentNotifications(parentUserId, childId);
+    const nowIso = new Date().toISOString();
+    const stmt = this.db.prepare(
+      `INSERT OR IGNORE INTO notification_reads (user_id, notification_id, read_at)
+       VALUES (?, ?, ?)`
+    );
+    const tx = this.db.transaction(() => {
+      let count = 0;
+      for (const item of notifications) {
+        const res = stmt.run(parentUserId, item.id, nowIso);
+        count += res.changes;
+      }
+      return count;
+    });
+    return tx();
+  }
+
+  hasRecentPendingSubmission(
+    childId: string,
+    activityId: string,
+    windowSeconds = 45
+  ): boolean {
+    const cutoffIso = new Date(Date.now() - windowSeconds * 1000).toISOString();
+    const row = this.db
+      .prepare(
+        `SELECT id FROM video_submissions
+         WHERE child_id = ? AND activity_id = ?
+           AND review_status IN ('queued', 'in_review')
+           AND deleted_at IS NULL
+           AND created_at >= ?
+         LIMIT 1`
+      )
+      .get(childId, activityId, cutoffIso);
+    return Boolean(row);
   }
 
   getDomainProgressForChild(childId: string, ageGroupId?: string): DomainProgressStat[] {
@@ -2454,7 +2567,7 @@ export class LittleStepsRepository {
       }
     }
 
-    const planDate = new Date().toISOString().slice(0, 10);
+    const planDate = getCalendarDateIso();
     const existing = this.db
       .prepare(
         'SELECT id, status FROM activity_completions WHERE child_id = ? AND activity_id = ? AND plan_date = ?'
@@ -2989,18 +3102,52 @@ export class LittleStepsRepository {
     };
   }
 
-  getReviewerDashboardSummary(): ReviewerDashboardSummary {
+  getReviewerAllowedAgeGroupSlugs(reviewerUserId: string): string[] {
+    const row = this.db
+      .prepare('SELECT reviewer_allowed_age_groups_json FROM users WHERE id = ?')
+      .get(reviewerUserId) as { reviewer_allowed_age_groups_json?: string | null } | undefined;
+    return this.parseJsonStringArray(row?.reviewer_allowed_age_groups_json);
+  }
+
+  isSubmissionWithinReviewerScope(reviewerUserId: string, submissionId: string): boolean {
+    const allowedSlugs = this.getReviewerAllowedAgeGroupSlugs(reviewerUserId);
+    if (allowedSlugs.length === 0) return true;
+    const row = this.db
+      .prepare(
+        `SELECT ag.slug as age_group_slug
+         FROM video_submissions vs
+         JOIN activities a ON a.id = vs.activity_id
+         JOIN age_groups ag ON ag.id = a.age_group_id
+         WHERE vs.id = ?`
+      )
+      .get(submissionId) as { age_group_slug: string } | undefined;
+    if (!row) return false;
+    return allowedSlugs.includes(row.age_group_slug);
+  }
+
+  getReviewerDashboardSummary(allowedAgeGroupSlugs?: string[]): ReviewerDashboardSummary {
+    const scopedSlugs =
+      allowedAgeGroupSlugs && allowedAgeGroupSlugs.length > 0 ? allowedAgeGroupSlugs : null;
+    const scopeJoin = scopedSlugs
+      ? 'JOIN activities a ON a.id = vs.activity_id JOIN age_groups ag ON ag.id = a.age_group_id'
+      : '';
+    const scopeWhere = scopedSlugs
+      ? `AND ag.slug IN (${scopedSlugs.map(() => '?').join(', ')})`
+      : '';
+    const scopeParams = scopedSlugs ? [...scopedSlugs] : [];
+
     const counts = this.db
       .prepare(
         `SELECT
-           SUM(CASE WHEN review_status = 'queued' THEN 1 ELSE 0 END) as pending_count,
-           SUM(CASE WHEN review_status = 'in_review' THEN 1 ELSE 0 END) as in_review_count,
-           SUM(CASE WHEN review_status = 'reviewed' THEN 1 ELSE 0 END) as reviewed_count,
-           SUM(CASE WHEN review_status = 'resubmit_requested' THEN 1 ELSE 0 END) as changes_count
-         FROM video_submissions
-         WHERE review_status != 'deleted'`
+           SUM(CASE WHEN vs.review_status = 'queued' THEN 1 ELSE 0 END) as pending_count,
+           SUM(CASE WHEN vs.review_status = 'in_review' THEN 1 ELSE 0 END) as in_review_count,
+           SUM(CASE WHEN vs.review_status = 'reviewed' THEN 1 ELSE 0 END) as reviewed_count,
+           SUM(CASE WHEN vs.review_status = 'resubmit_requested' THEN 1 ELSE 0 END) as changes_count
+         FROM video_submissions vs
+         ${scopeJoin}
+         WHERE vs.review_status != 'deleted' ${scopeWhere}`
       )
-      .get() as {
+      .get(...scopeParams) as {
       pending_count: number | null;
       in_review_count: number | null;
       reviewed_count: number | null;
@@ -3021,11 +3168,11 @@ export class LittleStepsRepository {
          JOIN age_groups ag ON ag.id = a.age_group_id
          LEFT JOIN users u ON u.id = vs.assigned_reviewer_id
          LEFT JOIN submission_reviews sr ON sr.submission_id = vs.id
-         WHERE vs.review_status != 'deleted'
+         WHERE vs.review_status != 'deleted' ${scopeWhere}
          ORDER BY vs.created_at DESC
          LIMIT 5`
       )
-      .all() as Array<Parameters<LittleStepsRepository['mapReviewerQueueRow']>[0]>;
+      .all(...scopeParams) as Array<Parameters<LittleStepsRepository['mapReviewerQueueRow']>[0]>;
 
     return {
       totalPending: counts.pending_count ?? 0,
@@ -3039,6 +3186,8 @@ export class LittleStepsRepository {
   listReviewerQueue(filters?: {
     status?: SubmissionReviewStatus | 'all';
     ageGroupSlug?: string;
+    allowedAgeGroupSlugs?: string[];
+    assignedReviewerId?: string;
   }): ReviewerQueueItem[] {
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -3053,6 +3202,18 @@ export class LittleStepsRepository {
     if (filters?.ageGroupSlug && filters.ageGroupSlug !== 'all') {
       conditions.push('ag.slug = ?');
       params.push(filters.ageGroupSlug);
+    }
+
+    if (filters?.allowedAgeGroupSlugs && filters.allowedAgeGroupSlugs.length > 0) {
+      conditions.push(
+        `ag.slug IN (${filters.allowedAgeGroupSlugs.map(() => '?').join(', ')})`
+      );
+      params.push(...filters.allowedAgeGroupSlugs);
+    }
+
+    if (filters?.assignedReviewerId) {
+      conditions.push('(vs.assigned_reviewer_id = ? OR sr.reviewer_user_id = ?)');
+      params.push(filters.assignedReviewerId, filters.assignedReviewerId);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -3087,6 +3248,9 @@ export class LittleStepsRepository {
   }
 
   claimSubmissionForReviewer(submissionId: string, reviewerId: string): boolean {
+    if (!this.isSubmissionWithinReviewerScope(reviewerId, submissionId)) {
+      return false;
+    }
     const res = this.db
       .prepare(
         `UPDATE video_submissions
@@ -3101,6 +3265,78 @@ export class LittleStepsRepository {
       this.logMediaAudit(reviewerId, 'reviewer', submissionId, 'review_open');
     }
     return res.changes > 0;
+  }
+
+  private hydrateActivityAtVersion(
+    activity: ActivityDetail,
+    requestedVersion: number | null
+  ): ActivityDetail {
+    if (!requestedVersion || requestedVersion === activity.version) {
+      return activity;
+    }
+    const versionRow = this.db
+      .prepare(
+        'SELECT snapshot_json FROM activity_versions WHERE activity_id = ? AND version_number = ?'
+      )
+      .get(activity.id, requestedVersion) as { snapshot_json: string } | undefined;
+    if (!versionRow) {
+      return activity;
+    }
+    try {
+      const snap = JSON.parse(versionRow.snapshot_json) as {
+        title?: string;
+        summary?: string;
+        objectives?: string[];
+        durationMinutes?: number;
+        prepLevel?: ActivityPrepLevel;
+        materials?: string[];
+        safetyNotes?: string;
+        instructionalPosterUrl?: string;
+        instructionalVideoUrl?: string | null;
+        steps?: Array<{
+          step_number?: number;
+          stepNumber?: number;
+          title: string;
+          instruction_text?: string;
+          instructionText?: string;
+          caregiver_tip?: string | null;
+          caregiverTip?: string | null;
+        }>;
+      };
+      const hydratedSteps: ActivityStep[] =
+        Array.isArray(snap.steps) && snap.steps.length > 0
+          ? snap.steps.map((s, idx) => ({
+              id: `snap_${activity.id}_v${requestedVersion}_s${idx + 1}`,
+              activityId: activity.id,
+              stepNumber: s.stepNumber ?? s.step_number ?? idx + 1,
+              title: s.title,
+              instructionText: s.instructionText ?? s.instruction_text ?? '',
+              caregiverTip: s.caregiverTip ?? s.caregiver_tip ?? null,
+            }))
+          : activity.steps;
+      return {
+        ...activity,
+        version: requestedVersion,
+        title: snap.title || activity.title,
+        summary: snap.summary || activity.summary,
+        objectives: Array.isArray(snap.objectives) ? snap.objectives : activity.objectives,
+        durationMinutes:
+          typeof snap.durationMinutes === 'number'
+            ? snap.durationMinutes
+            : activity.durationMinutes,
+        prepLevel: snap.prepLevel || activity.prepLevel,
+        materials: Array.isArray(snap.materials) ? snap.materials : activity.materials,
+        safetyNotes: snap.safetyNotes || activity.safetyNotes,
+        instructionalPosterUrl: snap.instructionalPosterUrl || activity.instructionalPosterUrl,
+        instructionalVideoUrl:
+          snap.instructionalVideoUrl !== undefined
+            ? snap.instructionalVideoUrl
+            : activity.instructionalVideoUrl,
+        steps: hydratedSteps,
+      };
+    } catch {
+      return activity;
+    }
   }
 
   getReviewerSubmissionDetail(submissionId: string): ReviewerSubmissionDetail | null {
@@ -3151,18 +3387,20 @@ export class LittleStepsRepository {
       | undefined;
 
     if (!row) return null;
-    const activity = this.getActivityDetail(row.activity_id);
-    if (!activity) return null;
+    const liveActivity = this.getActivityDetail(row.activity_id);
+    if (!liveActivity) return null;
+    const activity = this.hydrateActivityAtVersion(liveActivity, row.activity_version);
 
     const baseQueue = this.mapReviewerQueueRow(row);
     const storageMode: VideoStorageMode =
-      row.storage_provider && row.storage_provider !== 'local'
+      row.storage_provider === 'production_object_storage'
         ? 'production_object_storage'
         : 'demo_local_vault';
 
     return {
       submission: {
         ...baseQueue,
+        activityTitle: activity.title,
         caregiverNotes: row.caregiver_notes,
         changeRequestNote: row.change_request_note,
         deletedAt: row.deleted_at,
@@ -3194,6 +3432,9 @@ export class LittleStepsRepository {
     if (!rawSub) {
       throw new Error('Submission not found');
     }
+    if (!this.isSubmissionWithinReviewerScope(params.reviewerUserId, params.submissionId)) {
+      throw new Error('You are not assigned to review submissions for this age group.');
+    }
     if (
       rawSub.assigned_reviewer_id &&
       rawSub.assigned_reviewer_id !== params.reviewerUserId &&
@@ -3206,72 +3447,24 @@ export class LittleStepsRepository {
       throw new Error('Activity not found');
     }
 
-    const ratingById = new Map(params.criterionRatings.map((r) => [r.criterionId, r]));
-
-    const computedScores = activity.rubricCriteria.map((criterion) => {
-      const match = ratingById.get(criterion.id);
-      if (!match && params.mode === 'publish') {
-        throw new Error(`Missing rubric rating for "${criterion.label}"`);
-      }
-      const level: RubricAchievementLevel =
-        params.mode === 'not_assessable'
-          ? 'not_assessable'
-          : match?.achievedLevel ?? 'not_assessable';
-      const trimmedExplanation = match?.explanation?.trim() || null;
-
-      if (params.mode === 'publish' && level === 'not_assessable' && !trimmedExplanation) {
-        throw new Error(
-          `Please explain why "${criterion.label}" could not be assessed from the video.`
-        );
-      }
-
-      const mult = getRubricMultiplier(level);
-      const earned = mult === null ? 0 : criterion.weightPoints * mult;
-      return {
-        criterionId: criterion.id,
-        achievedLevel: level,
-        earnedPoints: earned,
-        maxPoints: criterion.weightPoints,
-        explanation:
-          trimmedExplanation ||
-          (params.mode === 'not_assessable' ? params.notAssessableReason?.trim() || null : null),
-      };
+    const evaluation = evaluateCaregiverRubric({
+      reviewerUserId: params.reviewerUserId,
+      mode: params.mode,
+      criteria: activity.rubricCriteria,
+      criterionRatings: params.criterionRatings,
+      strengthsNote: params.strengthsNote,
+      coachingTip: params.coachingTip,
+      reviewerComments: params.reviewerComments,
+      notAssessableReason: params.notAssessableReason,
     });
 
-    const calc = calculateInstructionMatchScore(
-      computedScores.map((s) => ({
-        weightPoints: s.maxPoints,
-        achievedLevel: s.achievedLevel,
-      }))
-    );
-
-    const isAssessable = params.mode !== 'not_assessable' && calc.isAssessable;
-    const scorePct = isAssessable ? calc.scorePct : null;
-
-    let finalNotAssessableReason: string | null = null;
-    if (!isAssessable) {
-      const explicitReason = params.notAssessableReason?.trim() || '';
-      const criterionReasons = computedScores
-        .filter((s) => s.achievedLevel === 'not_assessable' && s.explanation)
-        .map((s) => s.explanation)
-        .join(' · ');
-      finalNotAssessableReason =
-        explicitReason ||
-        criterionReasons ||
-        'Insufficient visual or audio evidence in the video to calculate a fair instruction-match score.';
-    }
-
-    const strengths =
-      params.strengthsNote?.trim() ||
-      (params.mode === 'not_assessable'
-        ? 'Thank you for sharing your practice clip with LittleSteps.'
-        : '');
-    const coaching =
-      params.coachingTip?.trim() ||
-      (params.mode === 'not_assessable'
-        ? 'When convenient, share a clip where the setup and activity steps are clearly visible in good lighting.'
-        : '');
-    const comments = params.reviewerComments?.trim() || null;
+    const computedScores = evaluation.computedScores;
+    const isAssessable = evaluation.isAssessable;
+    const scorePct = evaluation.scorePct;
+    const finalNotAssessableReason = evaluation.notAssessableReason;
+    const strengths = evaluation.strengthsNote;
+    const coaching = evaluation.coachingTip;
+    const comments = evaluation.reviewerComments;
 
     const nowIso = new Date().toISOString();
     const isDraft = params.mode === 'draft';

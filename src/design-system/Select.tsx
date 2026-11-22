@@ -13,6 +13,7 @@ export interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectE
   placeholder?: string;
   helperText?: string;
   error?: string;
+  optionalLabel?: string;
 }
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function Select(
@@ -22,6 +23,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function 
     placeholder,
     helperText,
     error,
+    optionalLabel,
     id,
     required,
     disabled,
@@ -42,11 +44,13 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function 
     <div className="space-y-1.5 w-full">
       <label htmlFor={selectId} className="block text-sm font-medium text-charcoal">
         {label}
-        {required && (
+        {required ? (
           <span className="text-danger ml-0.5" aria-hidden="true">
             *
           </span>
-        )}
+        ) : optionalLabel ? (
+          <span className="text-xs font-normal text-muted ml-1.5">({optionalLabel})</span>
+        ) : null}
       </label>
 
       <div className="relative">

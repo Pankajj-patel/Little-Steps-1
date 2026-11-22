@@ -28,13 +28,13 @@ export function TopBar({
   onBrandClick,
 }: TopBarProps) {
   return (
-    <header className="sticky top-0 z-30 bg-chalk/95 backdrop-blur-sm border-b border-stone">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-8">
+    <header className="sticky top-0 z-30 bg-offwhite/95 backdrop-blur-sm border-b border-border">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4 sm:gap-8">
         {/* Zone 1: Single text element wordmark */}
         <button
           type="button"
           onClick={onBrandClick}
-          className="font-serif text-xl font-medium tracking-tight text-ink whitespace-nowrap shrink-0 cursor-pointer inline-flex items-center gap-2.5"
+          className="font-display text-xl font-semibold tracking-tight text-charcoal whitespace-nowrap shrink-0 cursor-pointer inline-flex items-center gap-2.5 min-h-[44px]"
         >
           <BrandLogo size="md" />
           <span>LittleSteps</span>
@@ -43,7 +43,7 @@ export function TopBar({
         {/* Zone 2: Clean single-line text navigation links */}
         <nav
           aria-label="Primary navigation"
-          className="flex items-center gap-5 sm:gap-7 overflow-x-auto"
+          className="flex items-center gap-4 sm:gap-7 overflow-x-auto"
         >
           {navItems.map((item) => {
             const isActive = item.id === activeNavId;
@@ -51,11 +51,12 @@ export function TopBar({
               <button
                 key={item.id}
                 type="button"
+                aria-current={isActive ? 'page' : undefined}
                 onClick={() => onSelectNav(item.id)}
-                className={`text-sm py-1 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`min-h-[44px] text-sm py-2 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   isActive
-                    ? 'border-eucalyptus text-ink font-semibold'
-                    : 'border-transparent text-olive hover:text-ink font-medium'
+                    ? 'border-sage text-charcoal font-semibold'
+                    : 'border-transparent text-muted hover:text-charcoal font-medium'
                 }`}
               >
                 {item.label}
@@ -69,7 +70,7 @@ export function TopBar({
           <button
             type="button"
             onClick={onPrimaryAction}
-            className="px-4 py-2 text-sm font-medium rounded-lg border border-stone bg-linen text-ink hover:bg-oat transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg border border-border-strong bg-surface text-charcoal hover:bg-cream transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             {primaryActionLabel}
           </button>

@@ -45,11 +45,26 @@ export function createApp() {
   app.use(express.json({ limit: '2mb' }));
   app.use(cookieParser());
 
-  // Security headers (compatible with AI Studio preview iframe)
+  // Security headers (compatible with AI Studio preview iframe, Google Fonts, and local video blobs)
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=()');
+    res.setHeader(
+      'Content-Security-Policy',
+      [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data: blob:",
+        "media-src 'self' blob: data:",
+        "connect-src 'self' ws: wss:",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ].join('; ')
+    );
     next();
   });
 
@@ -66,6 +81,35 @@ export function createApp() {
 
   // Mount versioned REST API
   app.use('/api/v1', createApiRouter(repo, mediaStorage, retentionWorker));
+
+  // Centralized API error handler (prevents raw stack traces or HTML error pages on /api/v1)
+  app.use(
+    '/api/v1',
+    (
+      err: unknown,
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction
+    ) => {
+      const status =
+        typeof err === 'object' &&
+        err !== null &&
+        'status' in err &&
+        typeof (err as { status?: unknown }).status === 'number'
+          ? (err as { status: number }).status
+          : 500;
+      const safeMessage =
+        status < 500 && err instanceof Error
+          ? err.message
+          : 'An unexpected server error occurred. Please try again.';
+      if (status >= 500 && process.env.NODE_ENV !== 'test') {
+        console.error('[LittleSteps API Error]', err instanceof Error ? err.message : 'Unknown error');
+      }
+      if (!res.headersSent) {
+        res.status(status).json({ error: safeMessage });
+      }
+    }
+  );
 
   return { app, repo, retentionWorker, db };
 }
